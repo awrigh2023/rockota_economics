@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import 'katex/dist/katex.min.css';
 import { BookOpenIcon, CalendarIcon, ChevronRightIcon } from 'lucide-react';
 
 interface NoteEntry {
@@ -10,6 +15,11 @@ interface NoteEntry {
 }
 
 const notes: NoteEntry[] = [
+  {
+    title: 'Machine Learning for Everybody',
+    date: '2/14/2026',
+    file: '/learning_journey/machine_learning_notes.md',
+  },
   {
     title: 'Git and GitHub Course for Beginners',
     date: '2/11/2026',
@@ -111,8 +121,30 @@ const LearningJourneyPage = () => {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#243975]"></div>
                       </div>
                     ) : (
-                      <article className="prose prose-lg max-w-none prose-headings:text-[#243975] prose-a:text-[#008080] prose-strong:text-gray-800 prose-code:bg-gray-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono prose-code:before:content-none prose-code:after:content-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <article className="prose prose-lg max-w-none prose-headings:text-[#243975] prose-a:text-[#008080] prose-strong:text-gray-800">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            code({node, inline, className, children, ...props}: any) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              return !inline && match ? (
+                                <SyntaxHighlighter
+                                  style={vscDarkPlus}
+                                  language={match[1]}
+                                  PreTag="div"
+                                  {...props}
+                                >
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              ) : (
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
                           {markdownContent}
                         </ReactMarkdown>
                       </article>
