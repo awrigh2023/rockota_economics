@@ -1,0 +1,213 @@
+// Thin API client for the Rockota FastAPI backend.
+// Override the base URL with VITE_API_URL in a .env file if the backend
+// runs somewhere other than http://localhost:8000.
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+export interface User {
+  id: number;
+  email: string;
+  created_at: string;
+}
+
+export async function loginRequest(email: string, password: string): Promise<string> {
+  // FastAPI's OAuth2 password flow expects form-encoded `username`/`password`.
+  const body = new URLSearchParams();
+  body.append('username', email);
+  body.append('password', password);
+
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? 'Login failed. Check your email and password.');
+  }
+
+  const data = await res.json();
+  return data.access_token as string;
+}
+
+export async function fetchMe(token: string): Promise<User> {
+  const res = await fetch(`${API_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Session expired');
+  return (await res.json()) as User;
+}
+
+// --- Utils / data ------------------------------------------------------------
+export interface UtilView {
+  id: string;
+  name: string;
+}
+
+export interface UtilReport {
+  id: string;
+  name: string;
+}
+
+export interface UtilManifest {
+  id: string;
+  name: string;
+  source?: string;
+  description?: string;
+  credentials?: string[];
+  views?: UtilView[];
+  reports?: UtilReport[];
+  params?: Record<string, unknown>;
+}
+
+export interface Series {
+  id: number;
+  util_id: string | null;
+  code: string;
+  title: string | null;
+  source: string | null;
+  unit: string | null;
+  frequency: string | null;
+  geography: string | null;
+  dataset: string | null;
+}
+
+export interface Observation {
+  id: number;
+  series_id: number;
+  series_code: string;
+  series_title: string;
+  unit: string | null;
+  obs_date: string;
+  period_label: string | null;
+  value: number | null;
+  geography: string | null;
+  obs_type: string | null;
+}
+
+export interface ObservationFilters {
+  seriesIds?: number[];
+  dateFrom?: string;
+  dateTo?: string;
+  geography?: string;
+}
+
+function authHeaders(token: string): HeadersInit {
+  return { Authorization: `Bearer ${token}` };
+}
+
+async function getJson<T>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders(token) });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `Request failed (${res.status})`);
+  }
+  return (await res.json()) as T;
+}
+
+export function listUtils(token: string): Promise<UtilManifest[]> {
+  return getJson<UtilManifest[]>('/api/utils', token);
+}
+
+export function getUtil(token: string, id: string): Promise<UtilManifest> {
+  return getJson<UtilManifest>(`/api/utils/${id}`, token);
+}
+
+export function listSeries(token: string, utilId: string): Promise<Series[]> {
+  return getJson<Series[]>(`/api/series?util=${encodeURIComponent(utilId)}`, token);
+}
+
+export async function refreshUtil(token: string, id: string): Promise<{
+  util: string;
+  series_count: number;
+  observations_written: number;
+  refreshed_at: string;
+}> {
+  const res = await fetch(`${API_URL}/api/utils/${id}/refresh`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `Refresh failed (${res.status})`);
+  }
+  return res.json();
+}
+
+// Generates a util report on the server and downloads the returned PDF.
+export async function downloadReport(token: string, utilId: string, reportId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/utils/${utilId}/reports/${reportId}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `Report failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${utilId}_${reportId}_${new Date().toISOString().slice(0, 10)}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Render a util's server-side Python view to an HTML fragment.
+export async function renderView(
+  token: string,
+  utilId: string,
+  viewId: string,
+  params: Record<string, string[]> = {},
+): Promise<string> {
+  const res = await fetch(`${API_URL}/api/utils/${utilId}/views/${viewId}/render`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `View render failed (${res.status})`);
+  }
+  const data = await res.json();
+  return data.html as string;
+}
+
+function observationQuery(filters: ObservationFilters): string {
+  const p = new URLSearchParams();
+  (filters.seriesIds ?? []).forEach((id) => p.append('series', String(id)));
+  if (filters.dateFrom) p.append('date_from', filters.dateFrom);
+  if (filters.dateTo) p.append('date_to', filters.dateTo);
+  if (filters.geography) p.append('geography', filters.geography);
+  const qs = p.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function queryObservations(
+  token: string,
+  filters: ObservationFilters = {},
+): Promise<Observation[]> {
+  return getJson<Observation[]>(`/api/observations${observationQuery(filters)}`, token);
+}
+
+// Downloads the filtered data as an .xlsx file (triggers a browser download).
+export async function exportObservations(
+  token: string,
+  filters: ObservationFilters = {},
+): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/api/observations/export${observationQuery(filters)}`,
+    { headers: authHeaders(token) },
+  );
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rockota_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
