@@ -117,12 +117,18 @@ export function listSeries(token: string, utilId: string): Promise<Series[]> {
   return getJson<Series[]>(`/api/series?util=${encodeURIComponent(utilId)}`, token);
 }
 
-export async function refreshUtil(token: string, id: string): Promise<{
+export interface RefreshJob {
+  job_id: string;
   util: string;
-  series_count: number;
-  observations_written: number;
-  refreshed_at: string;
-}> {
+  status: 'running' | 'done' | 'error';
+  series_count?: number;
+  observations_written?: number;
+  refreshed_at?: string;
+  error?: string;
+}
+
+/** Fire a refresh in the background. Returns immediately with a job_id. */
+export async function refreshUtil(token: string, id: string): Promise<RefreshJob> {
   const res = await fetch(`${API_URL}/api/utils/${id}/refresh`, {
     method: 'POST',
     headers: authHeaders(token),
@@ -132,6 +138,11 @@ export async function refreshUtil(token: string, id: string): Promise<{
     throw new Error(detail?.detail ?? `Refresh failed (${res.status})`);
   }
   return res.json();
+}
+
+/** Poll job status once. */
+export async function getRefreshStatus(token: string, id: string): Promise<RefreshJob> {
+  return getJson<RefreshJob>(`/api/utils/${id}/refresh`, token);
 }
 
 // Generates a util report on the server and downloads the returned PDF.

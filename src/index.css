@@ -3,3 +3,9 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 /* DO NOT DELETE THESE TAILWIND IMPORTS, OTHERWISE THE STYLING WILL NOT RENDER AT ALL */
+
+/* ── Rockwell workspace custom scrollbar (dark panels only) ─────────────── */
+.rw-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+.rw-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.rw-scrollbar::-webkit-scrollbar-thumb { background: #243975; border-radius: 2px; }
+.rw-scrollbar::-webkit-scrollbar-thumb:hover { background: #b8a850; }

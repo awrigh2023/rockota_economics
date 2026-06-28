@@ -1,4 +1,5 @@
-import { BookOpenIcon, CodeIcon, DatabaseIcon, GraduationCapIcon, BriefcaseIcon, ChartBarIcon, MailIcon } from 'lucide-react';
+import { BookOpenIcon, CodeIcon, DatabaseIcon, BotIcon, MailIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
 const AboutPage = () => {
   return <div className="w-full bg-gray-50">
       {/* Hero Section */}
@@ -189,271 +190,92 @@ const AboutPage = () => {
         </div>
       </div>
       
-      {/* Professional Experience */}
+      {/* Rockwell Section */}
       <div className="bg-gray-50 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#243975] mb-4">
-              My Professional Experience
-            </h2>
-            <div className="w-24 h-1 bg-[#d7c770] mx-auto mb-6"></div>
-          </div>
-          <div className="flex flex-col md:flex-row gap-8 mb-12">
-            <div className="md:w-1/3">
-              <div className="sticky top-6">
-                <img src="image1.jpg" alt="Me working at desk with multiple monitors" className="rounded-lg shadow-lg mb-6" />
-                <div className="bg-white rounded-lg p-6 shadow-md border border-gray-100">
-                  <h3 className="text-xl font-semibold text-[#243975] mb-4">
-                    Technical Skills
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          Full-Stack Development
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-[#008080] h-2 rounded-full" style={{
-                        width: '90%'
-                      }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          Data Analysis
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-[#008080] h-2 rounded-full" style={{
-                        width: '95%'
-                      }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          Economics Research
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-[#008080] h-2 rounded-full" style={{
-                        width: '85%'
-                      }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          Python
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-[#008080] h-2 rounded-full" style={{
-                        width: '90%'
-                      }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          Node.js & React
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-[#008080] h-2 rounded-full" style={{
-                        width: '85%'
-                      }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          SQL & Databases
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-[#008080] h-2 rounded-full" style={{
-                        width: '80%'
-                      }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="md:w-2/3 space-y-8">
-              <div className="bg-white rounded-lg p-6 shadow-md border border-gray-100">
-                <div className="flex items-start">
-                  <div className="bg-[#243975]/10 p-3 rounded-full inline-flex items-center justify-center mr-4">
-                    <BriefcaseIcon size={24} className="text-[#243975]" />
+          <div className="flex flex-col lg:flex-row gap-12 items-center">
+            {/* Left — dark card with orb aesthetic */}
+            <div className="lg:w-1/2">
+              <div
+                className="rounded-2xl p-8 shadow-xl"
+                style={{
+                  background: 'linear-gradient(135deg, #0f1729 0%, #1a2744 60%, #0a1416 100%)',
+                  border: '1px solid rgba(215,199,112,0.15)',
+                }}
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-[#243975]/80 border border-[#d7c770]/30 flex items-center justify-center text-2xl">
+                    🪨
                   </div>
                   <div>
-                    <div className="flex flex-wrap justify-between items-center mb-2">
-                      <h3 className="text-xl font-semibold text-[#243975]">
-                        Libertas - Developer
-                      </h3>
-                      <span className="text-sm text-gray-500">
-                        Dec 2024 – Present
-                      </span>
-                    </div>
-                    <ul className="list-disc ml-5 space-y-2 text-gray-700">
-                      <li>
-                        Lead full-stack developer for the Marion family of
-                        companies, specializing in Node.js and React
-                        applications to build custom modular-software.
-                      </li>
-                      <li>
-                        Lead developer on the National Pitching Association's
-                        new athlete management platform, revamping outdated
-                        software to an innovative, data-intensive solution.
-                      </li>
-                      <li>
-                        Completed contract work in Ruby on Rails for businesses
-                        focused on RFID technology and retail theft prevention.
-                      </li>
-                    </ul>
+                    <h3 className="text-2xl font-bold text-[#d7c770]">Rockwell</h3>
+                    <p className="text-sm text-gray-400">The brain behind Rockota</p>
                   </div>
                 </div>
-              </div>
-              <div className="bg-white rounded-lg p-6 shadow-md border border-gray-100">
-                <div className="flex items-start">
-                  <div className="bg-[#243975]/10 p-3 rounded-full inline-flex items-center justify-center mr-4">
-                    <ChartBarIcon size={24} className="text-[#243975]" />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap justify-between items-center mb-2">
-                      <h3 className="text-xl font-semibold text-[#243975]">
-                        Libertas - Data Analyst
-                      </h3>
-                      <span className="text-sm text-gray-500">
-                        May 2024 – Dec 2024
-                      </span>
+
+                <div className="space-y-4 mb-8">
+                  {[
+                    { icon: '💬', label: 'Chat', desc: 'Conversational AI powered by local open-source models (Ollama) when running privately, or OpenAI in production.' },
+                    { icon: '📝', label: 'Vault', desc: 'A personal markdown vault backed by Azure Blob Storage. Write, organize, and search notes from anywhere.' },
+                    { icon: '🕸️', label: 'Knowledge Graph', desc: 'Notes linked with [[wikilinks]] render as a live 3D force graph — explore how ideas connect.' },
+                  ].map(({ icon, label, desc }) => (
+                    <div key={label} className="flex gap-3">
+                      <span className="text-xl shrink-0 mt-0.5">{icon}</span>
+                      <div>
+                        <span className="text-[#d7c770] font-medium">{label} — </span>
+                        <span className="text-gray-300 text-sm">{desc}</span>
+                      </div>
                     </div>
-                    <ul className="list-disc ml-5 space-y-2 text-gray-700">
-                      <li>
-                        Developed a Python application to automate PDF report
-                        generation for the construction division of Marion
-                        companies.
-                      </li>
-                      <li>
-                        Established an internal database structure using
-                        PostgreSQL for advanced data analysis, reporting, and
-                        dashboard creation.
-                      </li>
-                      <li>
-                        Maintained internal dashboards for financial and
-                        economic insights used regularly by executive
-                        leadership.
-                      </li>
-                    </ul>
-                  </div>
+                  ))}
                 </div>
-              </div>
-              <div className="bg-white rounded-lg p-6 shadow-md border border-gray-100">
-                <div className="flex items-start">
-                  <div className="bg-[#243975]/10 p-3 rounded-full inline-flex items-center justify-center mr-4">
-                    <DatabaseIcon size={24} className="text-[#243975]" />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap justify-between items-center mb-2">
-                      <h3 className="text-xl font-semibold text-[#243975]">
-                        Center for Business and Economic Analysis - Graduate
-                        Assistant
-                      </h3>
-                      <span className="text-sm text-gray-500">
-                        Jan 2024 – Present
-                      </span>
-                    </div>
-                    <ul className="list-disc ml-5 space-y-2 text-gray-700">
-                      <li>
-                        Built econometric and machine learning models to
-                        forecast enrollment and retention for university
-                        applicants.
-                      </li>
-                      <li>
-                        Integrated scenario analysis and cash flow-style
-                        projections to evaluate different outcomes.
-                      </li>
-                      <li>
-                        Contributed to ongoing academic research projects and
-                        papers.
-                      </li>
-                    </ul>
-                  </div>
-                </div>
+
+                <Link
+                  to="/rockwell"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-sm transition-colors"
+                  style={{ background: '#d7c770', color: '#0f1729' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#b8a850')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#d7c770')}
+                >
+                  <BotIcon size={16} />
+                  Open Rockwell
+                </Link>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-      {/* Education */}
-      <div className="bg-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#243975] mb-4">
-              My Education
-            </h2>
-            <div className="w-24 h-1 bg-[#d7c770] mx-auto mb-6"></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-gray-50 rounded-lg p-6 shadow-md border border-gray-100">
-              <div className="flex items-start">
-                <div className="bg-[#243975]/10 p-3 rounded-full inline-flex items-center justify-center mr-4">
-                  <GraduationCapIcon size={24} className="text-[#243975]" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-[#243975] mb-1">
-                    Master of Science, Economics
-                  </h3>
-                  <p className="text-gray-600 mb-3">
-                    University of Wyoming, Laramie, WY | May 2023 – May 2024
-                  </p>
-                  <ul className="list-disc ml-5 space-y-2 text-gray-700">
-                    <li>
-                      Defended a master's paper on the regional effects of
-                      exchange rate fluctuations on U.S. exports.
-                    </li>
-                    <li>
-                      Recipient of the 2023 Summer Undergraduate in Economics
-                      grant.
-                    </li>
-                    <li>
-                      Research interests: Macroeconomics and international
-                      trade.
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-6 shadow-md border border-gray-100">
-              <div className="flex items-start">
-                <div className="bg-[#243975]/10 p-3 rounded-full inline-flex items-center justify-center mr-4">
-                  <GraduationCapIcon size={24} className="text-[#243975]" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-[#243975] mb-1">
-                    Bachelor of Science, Economics
-                  </h3>
-                  <p className="text-gray-600 mb-1">
-                    Minor in Statistics; Quantitative Concentration
-                  </p>
-                  <p className="text-gray-600 mb-3">
-                    University of Wyoming, Laramie, WY | Aug 2019 – May 2023
-                  </p>
-                  <ul className="list-disc ml-5 space-y-2 text-gray-700">
-                    <li>Graduated with a 4.0 GPA, Summa Cum Laude.</li>
-                    <li>President's List (Fall 2019–Spring 2023).</li>
-                    <li>
-                      Awards: Outstanding Junior in Economics (2022),
-                      Outstanding Senior in Economics (2023).
-                    </li>
-                    <li>
-                      Served as President of the Economics Club (2021–2023).
-                    </li>
-                  </ul>
-                </div>
+
+            {/* Right — copy */}
+            <div className="lg:w-1/2">
+              <h2 className="text-3xl font-bold text-[#243975] mb-4">
+                Meet Rockwell — The Brain Behind Rockota
+              </h2>
+              <div className="w-24 h-1 bg-[#d7c770] mb-6"></div>
+              <p className="text-lg text-gray-600 mb-4">
+                The name Rockwell comes from a story as old as the technology itself. In the early days
+                of computing — when computers were still behemoths of metal and wires — there lived a
+                brilliant inventor named Rockwell. This visionary mind, with a passion for innovation
+                and progress, dared to dream of a world where humans and machines could coexist in
+                harmony. His tireless efforts inspired generations to come, and his legacy lived on in
+                the form of Rockota.
+              </p>
+              <p className="text-gray-600 mb-4">
+                Today, Rockwell is the brain behind Rockota — a nod to that pioneering spirit.
+                It combines a conversational assistant with a markdown note vault and a live
+                knowledge graph, all in one place.
+              </p>
+              <p className="text-gray-600 mb-4">
+                Notes are stored privately in Azure Blob Storage and linked together with
+                wiki-style <code className="bg-gray-100 px-1 rounded text-sm">[[wikilinks]]</code>.
+                The graph view renders those links as a navigable 3D network, making it easy to
+                see how economics ideas, research, and projects connect to each other.
+              </p>
+              <p className="text-gray-600 mb-6">
+                Visitors can browse public notes and explore the knowledge graph. Log in for the full
+                experience — chat with Rockwell, write notes, and build your own knowledge base.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">Open-source models</span>
+                <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">Markdown vault</span>
+                <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">3D knowledge graph</span>
+                <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">Private by default</span>
               </div>
             </div>
           </div>

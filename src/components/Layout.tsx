@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { BookOpenIcon, GraduationCapIcon, PackageIcon, HomeIcon, FlaskConicalIcon, Menu, X } from 'lucide-react';
+import { BookOpenIcon, PackageIcon, HomeIcon, FlaskConicalIcon, BotIcon, Menu, X } from 'lucide-react';
 import UserMenu from './UserMenu';
 const Layout = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -28,7 +28,7 @@ const Layout = () => {
           <div className="flex items-center space-x-2 md:space-x-4">
           {/* Desktop Navigation */}
           <nav className="hidden md:flex space-x-6">
-            <Link to="/" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/') && !isActive('/library') && !isActive('/learning-journey') && !isActive('/utils') && !isActive('/research') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+            <Link to="/" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/') && !isActive('/library') && !isActive('/utils') && !isActive('/research') && !isActive('/rockwell') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
               <HomeIcon size={18} />
               <span>About</span>
             </Link>
@@ -40,13 +40,13 @@ const Layout = () => {
               <BookOpenIcon size={18} />
               <span>Economic Library</span>
             </Link>
-            <Link to="/learning-journey" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/learning-journey') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-              <GraduationCapIcon size={18} />
-              <span>Learning Journey</span>
-            </Link>
             <Link to="/utils" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/utils') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
               <PackageIcon size={18} />
               <span>Utils</span>
+            </Link>
+            <Link to="/rockwell" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/rockwell') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+              <BotIcon size={18} />
+              <span>Rockwell</span>
             </Link>
           </nav>
 
@@ -67,9 +67,9 @@ const Layout = () => {
         {isMenuOpen && (
           <div className="md:hidden border-t border-gray-100 bg-white absolute w-full shadow-lg">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              <Link 
-                to="/" 
-                className={`flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium ${isActive('/') && !isActive('/library') && !isActive('/learning-journey') && !isActive('/utils') && !isActive('/research') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+              <Link
+                to="/"
+                className={`flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium ${isActive('/') && !isActive('/library') && !isActive('/utils') && !isActive('/research') && !isActive('/rockwell') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 <HomeIcon size={20} />
@@ -91,14 +91,6 @@ const Layout = () => {
                 <BookOpenIcon size={20} />
                 <span>Economic Library</span>
               </Link>
-              <Link 
-                to="/learning-journey" 
-                className={`flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium ${isActive('/learning-journey') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <GraduationCapIcon size={20} />
-                <span>Learning Journey</span>
-              </Link>
               <Link
                 to="/utils"
                 className={`flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium ${isActive('/utils') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
@@ -106,6 +98,14 @@ const Layout = () => {
               >
                 <PackageIcon size={20} />
                 <span>Utils</span>
+              </Link>
+              <Link
+                to="/rockwell"
+                className={`flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium ${isActive('/rockwell') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <BotIcon size={20} />
+                <span>Rockwell</span>
               </Link>
             </div>
           </div>

@@ -15,6 +15,7 @@ import {
   listSeries,
   queryObservations,
   refreshUtil,
+  getRefreshStatus,
   exportObservations,
   UtilManifest,
   Series,
@@ -104,9 +105,25 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     setError(null);
     setNotice(null);
     try {
-      const res = await refreshUtil(token, id);
-      setNotice(`Fetched ${res.series_count} series and wrote ${res.observations_written} observations.`);
-      await loadMeta();
+      // Fire the job — returns immediately
+      await refreshUtil(token, id);
+
+      // Poll until done or error (every 3s, up to 10 min)
+      const deadline = Date.now() + 10 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const job = await getRefreshStatus(token, id);
+        if (job.status === 'done') {
+          setNotice(`Fetched ${job.series_count} series and wrote ${job.observations_written} observations.`);
+          await loadMeta();
+          return;
+        }
+        if (job.status === 'error') {
+          throw new Error(job.error ?? 'Refresh failed');
+        }
+        // still running — keep polling
+      }
+      throw new Error('Refresh timed out after 10 minutes.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Refresh failed');
     } finally {
