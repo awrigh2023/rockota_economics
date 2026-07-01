@@ -28,7 +28,7 @@ import {
 const PAGE_SIZE = 200;
 
 // ---------------------------------------------------------------------------
-// SeriesTable — owns fetch + pagination state for a single series
+// SeriesTable — fetches + paginates a single series
 // ---------------------------------------------------------------------------
 interface SeriesTableProps {
   token: string;
@@ -48,7 +48,6 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
     [series.id, dateFrom, dateTo],
   );
 
-  // Reset to page 0 when filters change
   useEffect(() => {
     setPage(0);
     countObservations(token, baseFilters).then(setTotal).catch(() => setTotal(0));
@@ -66,22 +65,17 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-      {/* Series header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-800 text-sm">{series.title ?? series.code}</span>
-          {series.unit && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{series.unit}</span>
-          )}
-        </div>
+      <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
         <span className="text-xs text-gray-400">
           {total.toLocaleString()} row{total === 1 ? '' : 's'}
-          {total > PAGE_SIZE && ` · page ${page + 1} of ${totalPages}`}
+          {series.unit && <> · {series.unit}</>}
         </span>
+        {total > PAGE_SIZE && (
+          <span className="text-xs text-gray-400">page {page + 1} of {totalPages}</span>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto max-h-72">
+      <div className="overflow-x-auto max-h-[60vh]">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 sticky top-0">
             <tr className="text-left text-gray-500">
@@ -95,61 +89,46 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={hasType ? 5 : 4} className="px-4 py-6 text-center text-gray-400 text-xs">
-                  Loading…
-                </td>
+                <td colSpan={hasType ? 5 : 4} className="px-4 py-10 text-center text-gray-400 text-xs">Loading…</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={hasType ? 5 : 4} className="px-4 py-6 text-center text-gray-400 text-xs">
-                  No data for the current filters.
-                </td>
+                <td colSpan={hasType ? 5 : 4} className="px-4 py-10 text-center text-gray-400 text-xs">No data for the current filters.</td>
               </tr>
-            ) : (
-              rows.map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-gray-600">{r.period_label}</td>
-                  <td className="px-4 py-2 text-gray-600">{r.obs_date}</td>
-                  <td className="px-4 py-2 text-gray-500">{r.geography}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-gray-900">
-                    {r.value === null ? '—' : r.value.toLocaleString()}
+            ) : rows.map((r) => (
+              <tr key={r.id} className="hover:bg-gray-50">
+                <td className="px-4 py-2 text-gray-600">{r.period_label}</td>
+                <td className="px-4 py-2 text-gray-600">{r.obs_date}</td>
+                <td className="px-4 py-2 text-gray-500">{r.geography}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-gray-900">
+                  {r.value === null ? '—' : r.value.toLocaleString()}
+                </td>
+                {hasType && (
+                  <td className="px-4 py-2">
+                    {r.obs_type && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        r.obs_type === 'Forecast' ? 'bg-[#d7c770]/25 text-[#8a7b1f]' : 'bg-[#008080]/10 text-[#008080]'
+                      }`}>
+                        {r.obs_type}
+                      </span>
+                    )}
                   </td>
-                  {hasType && (
-                    <td className="px-4 py-2">
-                      {r.obs_type && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          r.obs_type === 'Forecast'
-                            ? 'bg-[#d7c770]/25 text-[#8a7b1f]'
-                            : 'bg-[#008080]/10 text-[#008080]'
-                        }`}>
-                          {r.obs_type}
-                        </span>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))
-            )}
+                )}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-end gap-2 px-4 py-2 border-t border-gray-100">
-          <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
+          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
             <ChevronLeftIcon size={16} />
           </button>
           <span className="text-xs text-gray-500">{page + 1} / {totalPages}</span>
-          <button
-            onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
-            disabled={page + 1 >= totalPages}
-            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
+          <button onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))} disabled={page + 1 >= totalPages}
+            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
             <ChevronRightIcon size={16} />
           </button>
         </div>
@@ -166,11 +145,15 @@ const UtilDetailInner = ({ id }: { id: string }) => {
 
   const [manifest, setManifest] = useState<UtilManifest | null>(null);
   const [series, setSeries] = useState<Series[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  // Top-level tabs: 'data' or a view id
   const [activeTab, setActiveTab] = useState<string>('data');
+  // Dataset picker (e.g. "Colorado Counties" / "States" / "National")
   const [activeDataset, setActiveDataset] = useState<string | null>(null);
+  // Series sub-tab within the active dataset
+  const [activeSeries, setActiveSeries] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -178,26 +161,21 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const exportFilters = useMemo(
-    () => ({ seriesIds: [...selected], dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
-    [selected, dateFrom, dateTo],
-  );
-
   const views = useMemo(() => manifest?.views ?? [], [manifest]);
 
   const datasets = useMemo(
     () => [...new Set(series.map((s) => s.dataset).filter(Boolean))] as string[],
     [series],
   );
+
   const visibleSeries = useMemo(
     () => (datasets.length ? series.filter((s) => s.dataset === activeDataset) : series),
     [series, datasets, activeDataset],
   );
 
-  // Series in the current dataset that are selected (drives table rendering)
-  const selectedVisible = useMemo(
-    () => visibleSeries.filter((s) => selected.has(s.id)),
-    [visibleSeries, selected],
+  const currentSeries = useMemo(
+    () => visibleSeries.find((s) => s.id === activeSeries) ?? null,
+    [visibleSeries, activeSeries],
   );
 
   const loadMeta = useCallback(async () => {
@@ -211,8 +189,8 @@ const UtilDetailInner = ({ id }: { id: string }) => {
       const ds = [...new Set(s.map((x) => x.dataset).filter(Boolean))] as string[];
       const initial = ds[0] ?? null;
       setActiveDataset((prev) => prev ?? initial);
-      const visible = (initial ? s.filter((x) => x.dataset === initial) : s).map((x) => x.id);
-      setSelected((prev) => (prev.size ? prev : new Set(visible)));
+      const firstInDataset = (initial ? s.filter((x) => x.dataset === initial) : s)[0];
+      setActiveSeries((prev) => prev ?? firstInDataset?.id ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load util');
     } finally {
@@ -220,12 +198,13 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     }
   }, [token, id]);
 
+  useEffect(() => { loadMeta(); }, [loadMeta]);
+
   function selectDataset(d: string) {
     setActiveDataset(d);
-    setSelected(new Set(series.filter((s) => s.dataset === d).map((x) => x.id)));
+    const first = series.find((s) => s.dataset === d);
+    setActiveSeries(first?.id ?? null);
   }
-
-  useEffect(() => { loadMeta(); }, [loadMeta]);
 
   async function handleRefresh() {
     if (!token) return;
@@ -254,10 +233,14 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   }
 
   async function handleExport() {
-    if (!token) return;
+    if (!token || !activeSeries) return;
     setExporting(true);
     try {
-      await exportObservations(token, exportFilters);
+      await exportObservations(token, {
+        seriesIds: [activeSeries],
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Export failed');
     } finally {
@@ -265,21 +248,9 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     }
   }
 
-  function toggleSeries(sid: number) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(sid)) next.delete(sid); else next.add(sid);
-      return next;
-    });
-  }
-
-  const allSelected = visibleSeries.length > 0 && visibleSeries.every((s) => selected.has(s.id));
-
   if (loading) {
     return (
-      <div className="w-full min-h-[60vh] flex items-center justify-center text-gray-500">
-        Loading…
-      </div>
+      <div className="w-full min-h-[60vh] flex items-center justify-center text-gray-500">Loading…</div>
     );
   }
 
@@ -290,6 +261,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           <ArrowLeftIcon size={16} className="mr-1" /> Back to Utils
         </Link>
 
+        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h1 className="text-3xl font-bold text-[#243975]">{manifest?.name ?? id}</h1>
@@ -298,19 +270,13 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           </div>
           {activeTab === 'data' && (
             <div className="flex items-center gap-3">
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="inline-flex items-center space-x-2 rounded-md bg-[#243975] px-4 py-2 text-sm font-medium text-white hover:bg-[#1c2e5e] disabled:opacity-60"
-              >
+              <button onClick={handleRefresh} disabled={refreshing}
+                className="inline-flex items-center space-x-2 rounded-md bg-[#243975] px-4 py-2 text-sm font-medium text-white hover:bg-[#1c2e5e] disabled:opacity-60">
                 <RefreshCwIcon size={16} className={refreshing ? 'animate-spin' : ''} />
                 <span>{refreshing ? 'Refreshing…' : 'Refresh data'}</span>
               </button>
-              <button
-                onClick={handleExport}
-                disabled={exporting || selected.size === 0}
-                className="inline-flex items-center space-x-2 rounded-md border border-[#008080] px-4 py-2 text-sm font-medium text-[#008080] hover:bg-[#008080]/10 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={handleExport} disabled={exporting || !activeSeries}
+                className="inline-flex items-center space-x-2 rounded-md border border-[#008080] px-4 py-2 text-sm font-medium text-[#008080] hover:bg-[#008080]/10 disabled:opacity-50 disabled:cursor-not-allowed">
                 <DownloadIcon size={16} />
                 <span>{exporting ? 'Exporting…' : 'Export to Excel'}</span>
               </button>
@@ -318,7 +284,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           )}
         </div>
 
-        {/* Tab bar */}
+        {/* Top-level tabs */}
         <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
           <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<TableIcon size={16} />} label="Data" />
           {views.map((v) => (
@@ -326,17 +292,15 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           ))}
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
-        {notice && activeTab === 'data' && (
-          <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{notice}</div>
-        )}
+        {error && <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {notice && activeTab === 'data' && <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{notice}</div>}
 
+        {/* View tab */}
         {activeTab !== 'data' && (
           <ViewHost token={token ?? ''} utilId={id} viewId={activeTab} reports={manifest?.reports ?? []} />
         )}
 
+        {/* Data tab */}
         {activeTab === 'data' && (
           series.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center">
@@ -347,75 +311,71 @@ const UtilDetailInner = ({ id }: { id: string }) => {
               </p>
             </div>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-              {/* Sidebar */}
-              <aside className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 h-fit sticky top-4">
-                {datasets.length > 1 && (
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Dataset</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {datasets.map((d) => (
-                        <button
-                          key={d}
-                          onClick={() => selectDataset(d)}
-                          className={`text-xs px-2.5 py-1 rounded-full border ${
-                            activeDataset === d
-                              ? 'bg-[#243975] text-white border-[#243975]'
-                              : 'text-gray-600 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <label className="block text-xs font-medium text-gray-500 mb-1">From date</label>
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full mb-3 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
-                <label className="block text-xs font-medium text-gray-500 mb-1">To date</label>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full mb-4 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
-
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-gray-500">Series ({visibleSeries.length})</span>
-                  <button
-                    onClick={() => setSelected(allSelected ? new Set() : new Set(visibleSeries.map((s) => s.id)))}
-                    className="text-xs text-[#008080] hover:underline"
-                  >
-                    {allSelected ? 'Hide all' : 'Show all'}
-                  </button>
-                </div>
-                <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
-                  {visibleSeries.map((s) => (
-                    <label key={s.id} className="flex items-start space-x-2 text-sm text-gray-700 cursor-pointer">
-                      <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSeries(s.id)}
-                        className="mt-0.5 accent-[#243975]" />
-                      <span>{s.title ?? s.code}</span>
-                    </label>
+            <div>
+              {/* Dataset picker */}
+              {datasets.length > 1 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {datasets.map((d) => (
+                    <button key={d} onClick={() => selectDataset(d)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
+                        activeDataset === d
+                          ? 'bg-[#243975] text-white border-[#243975]'
+                          : 'text-gray-600 border-gray-300 hover:bg-gray-50'
+                      }`}>
+                      {d}
+                    </button>
                   ))}
                 </div>
-              </aside>
+              )}
 
-              {/* One table per selected series */}
-              <div className="flex flex-col gap-6">
-                {selectedVisible.length === 0 ? (
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center text-gray-400 text-sm">
-                    Select a series from the sidebar to view data.
-                  </div>
-                ) : (
-                  selectedVisible.map((s) => (
-                    <SeriesTable
-                      key={s.id}
-                      token={token ?? ''}
-                      series={s}
-                      dateFrom={dateFrom}
-                      dateTo={dateTo}
-                    />
-                  ))
+              {/* Series sub-tabs */}
+              {visibleSeries.length > 0 && (
+                <div className="flex items-center gap-1 border-b border-gray-200 mb-4 overflow-x-auto">
+                  {visibleSeries.map((s) => (
+                    <button key={s.id} onClick={() => setActiveSeries(s.id)}
+                      className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+                        activeSeries === s.id
+                          ? 'border-[#008080] text-[#008080]'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}>
+                      {s.title ?? s.code}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Date filters */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 whitespace-nowrap">From</label>
+                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                    className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 whitespace-nowrap">To</label>
+                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                    className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+                </div>
+                {(dateFrom || dateTo) && (
+                  <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+                    className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
                 )}
               </div>
+
+              {/* Table for active series */}
+              {currentSeries ? (
+                <SeriesTable
+                  key={currentSeries.id}
+                  token={token ?? ''}
+                  series={currentSeries}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                />
+              ) : (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center text-gray-400 text-sm">
+                  Select a series tab to view data.
+                </div>
+              )}
             </div>
           )
         )}
@@ -426,12 +386,10 @@ const UtilDetailInner = ({ id }: { id: string }) => {
 
 function TabButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
   return (
-    <button
-      onClick={onClick}
+    <button onClick={onClick}
       className={`inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
         active ? 'border-[#243975] text-[#243975]' : 'border-transparent text-gray-500 hover:text-gray-700'
-      }`}
-    >
+      }`}>
       {icon}
       <span>{label}</span>
     </button>
