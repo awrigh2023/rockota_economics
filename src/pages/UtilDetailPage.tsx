@@ -7,6 +7,8 @@ import {
   DatabaseIcon,
   TableIcon,
   BarChart3Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ViewHost from '../components/ViewHost';
@@ -14,6 +16,7 @@ import {
   getUtil,
   listSeries,
   queryObservations,
+  countObservations,
   refreshUtil,
   getRefreshStatus,
   exportObservations,
@@ -22,6 +25,142 @@ import {
   Observation,
 } from '../lib/api';
 
+const PAGE_SIZE = 200;
+
+// ---------------------------------------------------------------------------
+// SeriesTable — owns fetch + pagination state for a single series
+// ---------------------------------------------------------------------------
+interface SeriesTableProps {
+  token: string;
+  series: Series;
+  dateFrom: string;
+  dateTo: string;
+}
+
+function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
+  const [rows, setRows] = useState<Observation[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const baseFilters = useMemo(
+    () => ({ seriesIds: [series.id], dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
+    [series.id, dateFrom, dateTo],
+  );
+
+  // Reset to page 0 when filters change
+  useEffect(() => {
+    setPage(0);
+    countObservations(token, baseFilters).then(setTotal).catch(() => setTotal(0));
+  }, [token, baseFilters]);
+
+  useEffect(() => {
+    setLoading(true);
+    queryObservations(token, { ...baseFilters, limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+      .then((r) => { setRows(r); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [token, baseFilters, page]);
+
+  const hasType = rows.some((r) => !!r.obs_type);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+      {/* Series header */}
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-800 text-sm">{series.title ?? series.code}</span>
+          {series.unit && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{series.unit}</span>
+          )}
+        </div>
+        <span className="text-xs text-gray-400">
+          {total.toLocaleString()} row{total === 1 ? '' : 's'}
+          {total > PAGE_SIZE && ` · page ${page + 1} of ${totalPages}`}
+        </span>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto max-h-72">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 sticky top-0">
+            <tr className="text-left text-gray-500">
+              <th className="px-4 py-2 font-medium">Period</th>
+              <th className="px-4 py-2 font-medium">Date</th>
+              <th className="px-4 py-2 font-medium">Geography</th>
+              <th className="px-4 py-2 font-medium text-right">Value</th>
+              {hasType && <th className="px-4 py-2 font-medium">Type</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {loading ? (
+              <tr>
+                <td colSpan={hasType ? 5 : 4} className="px-4 py-6 text-center text-gray-400 text-xs">
+                  Loading…
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={hasType ? 5 : 4} className="px-4 py-6 text-center text-gray-400 text-xs">
+                  No data for the current filters.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 text-gray-600">{r.period_label}</td>
+                  <td className="px-4 py-2 text-gray-600">{r.obs_date}</td>
+                  <td className="px-4 py-2 text-gray-500">{r.geography}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-gray-900">
+                    {r.value === null ? '—' : r.value.toLocaleString()}
+                  </td>
+                  {hasType && (
+                    <td className="px-4 py-2">
+                      {r.obs_type && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          r.obs_type === 'Forecast'
+                            ? 'bg-[#d7c770]/25 text-[#8a7b1f]'
+                            : 'bg-[#008080]/10 text-[#008080]'
+                        }`}>
+                          {r.obs_type}
+                        </span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-end gap-2 px-4 py-2 border-t border-gray-100">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronLeftIcon size={16} />
+          </button>
+          <span className="text-xs text-gray-500">{page + 1} / {totalPages}</span>
+          <button
+            onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
+            disabled={page + 1 >= totalPages}
+            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRightIcon size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 const UtilDetailInner = ({ id }: { id: string }) => {
   const { token } = useAuth();
 
@@ -30,7 +169,6 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [rows, setRows] = useState<Observation[]>([]);
   const [activeTab, setActiveTab] = useState<string>('data');
   const [activeDataset, setActiveDataset] = useState<string | null>(null);
 
@@ -40,15 +178,13 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const filters = useMemo(
+  const exportFilters = useMemo(
     () => ({ seriesIds: [...selected], dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
     [selected, dateFrom, dateTo],
   );
 
   const views = useMemo(() => manifest?.views ?? [], [manifest]);
 
-  // Distinct dataset labels (ignoring series with none). A util with 0 or 1
-  // shows no selector; multiple shows a dataset picker.
   const datasets = useMemo(
     () => [...new Set(series.map((s) => s.dataset).filter(Boolean))] as string[],
     [series],
@@ -56,6 +192,12 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const visibleSeries = useMemo(
     () => (datasets.length ? series.filter((s) => s.dataset === activeDataset) : series),
     [series, datasets, activeDataset],
+  );
+
+  // Series in the current dataset that are selected (drives table rendering)
+  const selectedVisible = useMemo(
+    () => visibleSeries.filter((s) => selected.has(s.id)),
+    [visibleSeries, selected],
   );
 
   const loadMeta = useCallback(async () => {
@@ -69,10 +211,8 @@ const UtilDetailInner = ({ id }: { id: string }) => {
       const ds = [...new Set(s.map((x) => x.dataset).filter(Boolean))] as string[];
       const initial = ds[0] ?? null;
       setActiveDataset((prev) => prev ?? initial);
-      const firstVisible = (initial ? s.filter((x) => x.dataset === initial) : s)
-        .slice(0, 1)
-        .map((x) => x.id);
-      setSelected((prev) => (prev.size ? prev : new Set(firstVisible)));
+      const visible = (initial ? s.filter((x) => x.dataset === initial) : s).map((x) => x.id);
+      setSelected((prev) => (prev.size ? prev : new Set(visible)));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load util');
     } finally {
@@ -82,22 +222,10 @@ const UtilDetailInner = ({ id }: { id: string }) => {
 
   function selectDataset(d: string) {
     setActiveDataset(d);
-    setSelected(new Set(series.filter((s) => s.dataset === d).slice(0, 1).map((x) => x.id)));
+    setSelected(new Set(series.filter((s) => s.dataset === d).map((x) => x.id)));
   }
 
-  useEffect(() => {
-    loadMeta();
-  }, [loadMeta]);
-
-  useEffect(() => {
-    if (!token || filters.seriesIds.length === 0) {
-      setRows([]);
-      return;
-    }
-    queryObservations(token, filters)
-      .then(setRows)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Query failed'));
-  }, [token, filters]);
+  useEffect(() => { loadMeta(); }, [loadMeta]);
 
   async function handleRefresh() {
     if (!token) return;
@@ -105,10 +233,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     setError(null);
     setNotice(null);
     try {
-      // Fire the job — returns immediately
       await refreshUtil(token, id);
-
-      // Poll until done or error (every 3s, up to 10 min)
       const deadline = Date.now() + 10 * 60 * 1000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -118,10 +243,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           await loadMeta();
           return;
         }
-        if (job.status === 'error') {
-          throw new Error(job.error ?? 'Refresh failed');
-        }
-        // still running — keep polling
+        if (job.status === 'error') throw new Error(job.error ?? 'Refresh failed');
       }
       throw new Error('Refresh timed out after 10 minutes.');
     } catch (e) {
@@ -135,7 +257,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     if (!token) return;
     setExporting(true);
     try {
-      await exportObservations(token, filters);
+      await exportObservations(token, exportFilters);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Export failed');
     } finally {
@@ -146,14 +268,12 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   function toggleSeries(sid: number) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(sid)) next.delete(sid);
-      else next.add(sid);
+      if (next.has(sid)) next.delete(sid); else next.add(sid);
       return next;
     });
   }
 
   const allSelected = visibleSeries.length > 0 && visibleSeries.every((s) => selected.has(s.id));
-  const hasType = rows.some((r) => !!r.obs_type);
 
   if (loading) {
     return (
@@ -174,6 +294,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           <div>
             <h1 className="text-3xl font-bold text-[#243975]">{manifest?.name ?? id}</h1>
             {manifest?.source && <p className="text-sm text-gray-500 mt-1">Source · {manifest.source}</p>}
+            {manifest?.description && <p className="text-sm text-gray-400 mt-0.5 max-w-2xl">{manifest.description}</p>}
           </div>
           {activeTab === 'data' && (
             <div className="flex items-center gap-3">
@@ -187,7 +308,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
               </button>
               <button
                 onClick={handleExport}
-                disabled={exporting || rows.length === 0}
+                disabled={exporting || selected.size === 0}
                 className="inline-flex items-center space-x-2 rounded-md border border-[#008080] px-4 py-2 text-sm font-medium text-[#008080] hover:bg-[#008080]/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <DownloadIcon size={16} />
@@ -201,13 +322,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
         <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
           <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<TableIcon size={16} />} label="Data" />
           {views.map((v) => (
-            <TabButton
-              key={v.id}
-              active={activeTab === v.id}
-              onClick={() => setActiveTab(v.id)}
-              icon={<BarChart3Icon size={16} />}
-              label={v.name}
-            />
+            <TabButton key={v.id} active={activeTab === v.id} onClick={() => setActiveTab(v.id)} icon={<BarChart3Icon size={16} />} label={v.name} />
           ))}
         </div>
 
@@ -218,14 +333,12 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{notice}</div>
         )}
 
-        {/* View tab */}
         {activeTab !== 'data' && (
           <ViewHost token={token ?? ''} utilId={id} viewId={activeTab} reports={manifest?.reports ?? []} />
         )}
 
-        {/* Data tab */}
-        {activeTab === 'data' &&
-          (series.length === 0 ? (
+        {activeTab === 'data' && (
+          series.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center">
               <DatabaseIcon size={40} className="text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600 mb-1">No data stored yet.</p>
@@ -234,11 +347,9 @@ const UtilDetailInner = ({ id }: { id: string }) => {
               </p>
             </div>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-              {/* Filters */}
-              <aside className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 h-fit">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">Filters</h2>
-
+            <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+              {/* Sidebar */}
+              <aside className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 h-fit sticky top-4">
                 {datasets.length > 1 && (
                   <div className="mb-4">
                     <label className="block text-xs font-medium text-gray-500 mb-1">Dataset</label>
@@ -261,83 +372,53 @@ const UtilDetailInner = ({ id }: { id: string }) => {
                 )}
 
                 <label className="block text-xs font-medium text-gray-500 mb-1">From date</label>
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full mb-3 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full mb-3 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
                 <label className="block text-xs font-medium text-gray-500 mb-1">To date</label>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full mb-4 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full mb-4 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-gray-500">Series ({visibleSeries.length})</span>
-                  <button onClick={() => setSelected(allSelected ? new Set() : new Set(visibleSeries.map((s) => s.id)))} className="text-xs text-[#008080] hover:underline">
-                    {allSelected ? 'Clear all' : 'Select all'}
+                  <button
+                    onClick={() => setSelected(allSelected ? new Set() : new Set(visibleSeries.map((s) => s.id)))}
+                    className="text-xs text-[#008080] hover:underline"
+                  >
+                    {allSelected ? 'Hide all' : 'Show all'}
                   </button>
                 </div>
                 <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
                   {visibleSeries.map((s) => (
                     <label key={s.id} className="flex items-start space-x-2 text-sm text-gray-700 cursor-pointer">
-                      <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSeries(s.id)} className="mt-0.5 accent-[#243975]" />
+                      <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSeries(s.id)}
+                        className="mt-0.5 accent-[#243975]" />
                       <span>{s.title ?? s.code}</span>
                     </label>
                   ))}
                 </div>
               </aside>
 
-              {/* Table */}
-              <section className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 text-sm text-gray-500">
-                  {rows.length} row{rows.length === 1 ? '' : 's'}
-                  {selected.size === 0 && ' · select a series to view data'}
-                </div>
-                <div className="overflow-x-auto max-h-[60vh]">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr className="text-left text-gray-500">
-                        <th className="px-4 py-2 font-medium">Series</th>
-                        <th className="px-4 py-2 font-medium">Period</th>
-                        <th className="px-4 py-2 font-medium">Date</th>
-                        <th className="px-4 py-2 font-medium text-right">Value</th>
-                        <th className="px-4 py-2 font-medium">Unit</th>
-                        <th className="px-4 py-2 font-medium">Geography</th>
-                        {hasType && <th className="px-4 py-2 font-medium">Type</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {rows.map((r) => (
-                        <tr key={r.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-2 text-gray-800">{r.series_title}</td>
-                          <td className="px-4 py-2 text-gray-600">{r.period_label}</td>
-                          <td className="px-4 py-2 text-gray-600">{r.obs_date}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-gray-900">
-                            {r.value === null ? '—' : r.value.toLocaleString()}
-                          </td>
-                          <td className="px-4 py-2 text-gray-500">{r.unit}</td>
-                          <td className="px-4 py-2 text-gray-500">{r.geography}</td>
-                          {hasType && (
-                            <td className="px-4 py-2">
-                              {r.obs_type && (
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                  r.obs_type === 'Forecast'
-                                    ? 'bg-[#d7c770]/25 text-[#8a7b1f]'
-                                    : 'bg-[#008080]/10 text-[#008080]'
-                                }`}>
-                                  {r.obs_type}
-                                </span>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                      {rows.length === 0 && (
-                        <tr>
-                          <td colSpan={hasType ? 7 : 6} className="px-4 py-10 text-center text-gray-400">
-                            No observations for the current filters.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+              {/* One table per selected series */}
+              <div className="flex flex-col gap-6">
+                {selectedVisible.length === 0 ? (
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center text-gray-400 text-sm">
+                    Select a series from the sidebar to view data.
+                  </div>
+                ) : (
+                  selectedVisible.map((s) => (
+                    <SeriesTable
+                      key={s.id}
+                      token={token ?? ''}
+                      series={s}
+                      dateFrom={dateFrom}
+                      dateTo={dateTo}
+                    />
+                  ))
+                )}
+              </div>
             </div>
-          ))}
+          )
+        )}
       </div>
     </div>
   );
@@ -357,8 +438,6 @@ function TabButton({ active, onClick, icon, label }: { active: boolean; onClick:
   );
 }
 
-// Keyed by util id so switching utils fully remounts the page — this resets
-// selected series, rows, filters, and active tab (no stale state across utils).
 const UtilDetailPage = () => {
   const { id = '' } = useParams();
   return <UtilDetailInner key={id} id={id} />;

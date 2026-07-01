@@ -90,6 +90,10 @@ export interface ObservationFilters {
   dateFrom?: string;
   dateTo?: string;
   geography?: string;
+  /** Page size for the table view. Omit for the full set (export). */
+  limit?: number;
+  /** Row offset for pagination (used with limit). */
+  offset?: number;
 }
 
 function authHeaders(token: string): HeadersInit {
@@ -191,6 +195,8 @@ function observationQuery(filters: ObservationFilters): string {
   if (filters.dateFrom) p.append('date_from', filters.dateFrom);
   if (filters.dateTo) p.append('date_to', filters.dateTo);
   if (filters.geography) p.append('geography', filters.geography);
+  if (filters.limit != null) p.append('limit', String(filters.limit));
+  if (filters.offset != null) p.append('offset', String(filters.offset));
   const qs = p.toString();
   return qs ? `?${qs}` : '';
 }
@@ -200,6 +206,20 @@ export function queryObservations(
   filters: ObservationFilters = {},
 ): Promise<Observation[]> {
   return getJson<Observation[]>(`/api/observations${observationQuery(filters)}`, token);
+}
+
+// Total rows matching a filter (ignores limit/offset) — drives table pagination.
+export async function countObservations(
+  token: string,
+  filters: ObservationFilters = {},
+): Promise<number> {
+  // Count ignores paging — drop limit/offset before building the query.
+  const rest: ObservationFilters = { ...filters, limit: undefined, offset: undefined };
+  const data = await getJson<{ total: number }>(
+    `/api/observations/count${observationQuery(rest)}`,
+    token,
+  );
+  return data.total;
 }
 
 // Downloads the filtered data as an .xlsx file (triggers a browser download).
