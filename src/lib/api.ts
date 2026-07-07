@@ -76,6 +76,7 @@ export interface Series {
   frequency: string | null;
   geography: string | null;
   dataset: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface Observation {

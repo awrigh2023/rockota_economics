@@ -70,9 +70,17 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
           {total.toLocaleString()} row{total === 1 ? '' : 's'}
           {series.unit && <> · {series.unit}</>}
         </span>
-        {total > PAGE_SIZE && (
-          <span className="text-xs text-gray-400">page {page + 1} of {totalPages}</span>
-        )}
+        <div className="flex items-center gap-3">
+          {series.metadata?.source_url && (
+            <a href={String(series.metadata.source_url)} target="_blank" rel="noreferrer"
+              className="text-xs text-[#243975] hover:underline">
+              View source ↗
+            </a>
+          )}
+          {total > PAGE_SIZE && (
+            <span className="text-xs text-gray-400">page {page + 1} of {totalPages}</span>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto max-h-[60vh]">
