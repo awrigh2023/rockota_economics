@@ -70,9 +70,17 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
           {total.toLocaleString()} row{total === 1 ? '' : 's'}
           {series.unit && <> · {series.unit}</>}
         </span>
-        {total > PAGE_SIZE && (
-          <span className="text-xs text-gray-400">page {page + 1} of {totalPages}</span>
-        )}
+        <div className="flex items-center gap-3">
+          {series.metadata?.source_url && (
+            <a href={String(series.metadata.source_url)} target="_blank" rel="noreferrer"
+              className="text-xs text-[#243975] hover:underline">
+              View source ↗
+            </a>
+          )}
+          {total > PAGE_SIZE && (
+            <span className="text-xs text-gray-400">page {page + 1} of {totalPages}</span>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto max-h-[60vh]">
@@ -265,7 +273,16 @@ const UtilDetailInner = ({ id }: { id: string }) => {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h1 className="text-3xl font-bold text-[#243975]">{manifest?.name ?? id}</h1>
-            {manifest?.source && <p className="text-sm text-gray-500 mt-1">Source · {manifest.source}</p>}
+            {manifest?.sources && manifest.sources.length > 0 ? (
+              <p className="text-sm text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                {manifest.sources.map((s, i) => (
+                  <a key={i} href={s.url} target="_blank" rel="noreferrer"
+                    className="hover:text-[#243975] underline underline-offset-2">{s.name}</a>
+                ))}
+              </p>
+            ) : manifest?.source && (
+              <p className="text-sm text-gray-500 mt-1">Source · {manifest.source}</p>
+            )}
             {manifest?.description && <p className="text-sm text-gray-400 mt-0.5 max-w-2xl">{manifest.description}</p>}
           </div>
           {activeTab === 'data' && (

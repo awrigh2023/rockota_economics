@@ -49,10 +49,16 @@ export interface UtilReport {
   name: string;
 }
 
+export interface UtilSource {
+  name: string;
+  url: string;
+}
+
 export interface UtilManifest {
   id: string;
   name: string;
   source?: string;
+  sources?: UtilSource[];
   description?: string;
   credentials?: string[];
   views?: UtilView[];
@@ -70,6 +76,7 @@ export interface Series {
   frequency: string | null;
   geography: string | null;
   dataset: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface Observation {
