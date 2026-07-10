@@ -18,8 +18,8 @@ const Layout = () => {
             <img src="/Rockota_Logo.jpg" alt="Rockota Logo" className="h-10 w-auto" />
             <div>
               <h1 className="text-2xl font-bold text-[#008080]">Rockota</h1>
-              <p className="text-xs text-gray-500">
-                by Andrew Wright • Founded 2025
+              <p className="text-xs text-gray-500 hidden sm:block">
+                Economics, in service
               </p>
             </div>
           </Link>
@@ -27,7 +27,7 @@ const Layout = () => {
           {/* Right side: nav + account + mobile toggle */}
           <div className="flex items-center space-x-2 md:space-x-4">
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-6">
+          <nav className="hidden lg:flex space-x-2 xl:space-x-4">
             <Link to="/" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/') && !isActive('/library') && !isActive('/utils') && !isActive('/research') && !isActive('/rockwell') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
               <HomeIcon size={18} />
               <span>About</span>
@@ -38,7 +38,7 @@ const Layout = () => {
             </Link>
             <Link to="/library" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/library') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
               <BookOpenIcon size={18} />
-              <span>Economic Library</span>
+              <span>Library</span>
             </Link>
             <Link to="/utils" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/utils') ? 'bg-[#243975] text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
               <PackageIcon size={18} />
@@ -55,7 +55,7 @@ const Layout = () => {
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none"
+            className="lg:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -65,7 +65,7 @@ const Layout = () => {
 
         {/* Mobile Navigation */}
         {isMenuOpen && (
-          <div className="md:hidden border-t border-gray-100 bg-white absolute w-full shadow-lg">
+          <div className="lg:hidden border-t border-gray-100 bg-white absolute w-full shadow-lg">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
               <Link
                 to="/"
@@ -121,11 +121,10 @@ const Layout = () => {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="mb-4 md:mb-0 text-center md:text-left">
               <p className="text-sm">
-                © {new Date().getFullYear()} Rockota by Andrew Wright. All
-                rights reserved.
+                © {new Date().getFullYear()} Rockota. All rights reserved.
               </p>
               <p className="text-xs text-gray-300 mt-1">
-                Founded 2025 • Currently in early development
+                Economics, in service • In active development
               </p>
             </div>
             <div className="flex flex-wrap justify-center space-x-4 md:space-x-6 gap-y-2">

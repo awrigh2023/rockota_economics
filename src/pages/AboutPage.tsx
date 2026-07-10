@@ -8,62 +8,89 @@ const AboutPage = () => {
           <div className="flex flex-col md:flex-row items-center gap-12">
             <div className="md:w-1/2">
               <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                Hi, I'm Andrew Wright, and this is Rockota
+                Rockota
               </h1>
               <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#d7c770]">
-                Bridging Economics & Technology
+                Economics, in service.
               </h2>
               <p className="text-xl text-gray-200 mb-6">
-                I'm a developer, economist, and data analyst passionate about
-                using computational tools to solve economic problems and spread
-                knowledge.
+                Rockota turns economic reasoning into things people can use:
+                explainers, data tools, and reports built to make economic
+                understanding useful to the people around us. It lives at the
+                intersection of economics and technology, and everything it
+                makes is meant to be handed to someone else.
               </p>
               <div className="flex flex-wrap gap-3">
                 <span className="bg-[#008080] px-4 py-2 rounded-full text-sm font-medium">
-                  Full-Stack Development
+                  Read &amp; Explain
                 </span>
                 <span className="bg-[#d7c770] text-[#243975] px-4 py-2 rounded-full text-sm font-medium">
-                  Data Analysis
+                  Build &amp; Ship
                 </span>
                 <span className="bg-white text-[#243975] px-4 py-2 rounded-full text-sm font-medium">
-                  Economics
+                  In Service
                 </span>
               </div>
             </div>
             <div className="md:w-1/2 flex justify-center">
               <div className="relative">
                 <div className="absolute inset-0 rounded-full bg-[#d7c770] blur-lg opacity-30 transform -translate-x-4 translate-y-4"></div>
-                <img src="image2.jpg" alt="Andrew Wright standing in front of Adam Smith statue" className="rounded-lg shadow-xl relative z-10 max-w-full h-auto border-4 border-white" style={{
+                <img src="adam-smith.jpg" alt="Statue of Adam Smith on the Royal Mile in Edinburgh" className="rounded-lg shadow-xl relative z-10 max-w-full h-auto border-4 border-white" style={{
                 maxHeight: '500px'
               }} />
+                <p className="text-center text-sm text-gray-300 mt-3 italic">
+                  Adam Smith, the Royal Mile, Edinburgh
+                </p>
               </div>
             </div>
           </div>
         </div>
       </div>
-      {/* About Rockota Project */}
+      {/* The idea behind Rockota */}
       <div className="bg-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-[#243975] mb-4">
-              The Rockota Project
+              The Idea Behind Rockota
             </h2>
             <div className="w-24 h-1 bg-[#d7c770] mx-auto mb-6"></div>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              I founded Rockota in 2025 to combine my passion for economics and
-              technology to create tools that make economic concepts accessible
-              and applicable, and to explore the future role of technology, programming, and computer science in the field of economics. 
-              This page aims to spread knowledge and ideas on all three of these disciplines, and explores new and innovative ways to mesh these disciplines together.
-              You'll find basic-to-advanced ideas and current knowledge on Economics, Computer Science, and Programming, along with economics projects, games, and data-dashboards using
-              modern web-technologies. The goal is to introduce more computer science and programming into economics, though at the end of the day I'll be happy if I can make just one 
-              person fall in love with the field of economics or programming.
+              Rockota exists to make economic understanding useful, and to give
+              it away. The reading, the writing, the data tools, the code, and
+              Rockwell all point outward at the same target: the neighbor, the
+              coworker no one talks to, the person walking a dog down the street.
+              Ordinary people, whether or not they ever know the work exists.
             </p>
             <p className="text-md text-gray-500 mt-3 max-w-2xl mx-auto">
-              Rockota is in its early stages of development as I build out the
-              platform to bridge the gap between economic theory and practical
-              applications through modern technology.
+              The through-line is simple. Economics is not just for those with a
+              degree in it. Rockota&rsquo;s job is to translate economic reasoning
+              into explainers, visualizations, and tools that anyone can pick up
+              and use.
             </p>
           </div>
+
+          {/* Adam Smith foundation */}
+          <div className="max-w-4xl mx-auto bg-gray-50 border border-gray-100 rounded-xl p-8 shadow-sm mb-12">
+            <h3 className="text-xl font-semibold text-[#243975] mb-3">
+              Standing on Adam Smith
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Smith wrote two books, and Rockota holds both. In
+              <em> The Theory of Moral Sentiments</em> he began with fellow-feeling:
+              that another person&rsquo;s happiness can matter to us though we
+              gain nothing from it but the pleasure of seeing it. In
+              <em> The Wealth of Nations</em> he showed how honest self-interest,
+              kept within justice, feeds the good of the whole. These were never
+              a contradiction. Bettering the craft, done with fairness and
+              sympathy, is how one person serves the many.
+            </p>
+            <p className="text-lg text-[#243975] italic border-l-4 border-[#d7c770] pl-4">
+              Rockota means to be the invisible hand on purpose: to get so good
+              at the work that the good of it spills over to people it will never
+              meet.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-gray-50 rounded-lg p-6 shadow-md border border-gray-100">
               <div className="bg-[#243975]/10 p-4 rounded-full inline-flex items-center justify-center mb-4">
@@ -73,8 +100,8 @@ const AboutPage = () => {
                 Economic Library
               </h3>
               <p className="text-gray-600">
-                A curated collection of economic texts and concepts, made
-                accessible through modern digital interfaces and explanations.
+                A curated collection of economic texts and concepts, read closely
+                and distilled into plain-language explanations anyone can follow.
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-6 shadow-md border border-gray-100">
@@ -85,8 +112,9 @@ const AboutPage = () => {
                 Data Repository
               </h3>
               <p className="text-gray-600">
-                Organized economic datasets and visualization tools to help
-                students and researchers explore economic trends and patterns.
+                Organized economic datasets and visualization tools, so students,
+                researchers, and the merely curious can explore trends for
+                themselves.
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-6 shadow-md border border-gray-100">
@@ -97,14 +125,15 @@ const AboutPage = () => {
                 Projects Portfolio
               </h3>
               <p className="text-gray-600">
-                Practical applications of economic theory through computational
-                models, simulations, and real-world problem-solving.
+                Economic theory turned into working software: models,
+                simulations, and tools aimed at real problems people actually
+                have.
               </p>
             </div>
           </div>
         </div>
       </div>
-      
+
       {/* Featured Research */}
       <div className="bg-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -114,7 +143,7 @@ const AboutPage = () => {
             </h2>
             <div className="w-24 h-1 bg-[#d7c770] mx-auto mb-6"></div>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Exploring how economic policies and global factors impact different regions through rigorous research and analysis.
+              Exploring how economic policies and global factors affect different regions through rigorous research and analysis.
             </p>
           </div>
 
@@ -126,11 +155,11 @@ const AboutPage = () => {
                   {/* Video Section */}
                   <div className="lg:w-1/2">
                     <div className="relative bg-black rounded-lg overflow-hidden shadow-lg">
-                    <iframe 
-                      src="https://www.youtube.com/embed/g1YeDiA6_Zg" 
-                      title="YouTube video player" 
-                      frameBorder="0" 
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    <iframe
+                      src="https://www.youtube.com/embed/g1YeDiA6_Zg"
+                      title="YouTube video player"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen
                       className="w-full h-64 md:h-72"
                     ></iframe>
@@ -142,17 +171,17 @@ const AboutPage = () => {
                     <div className="flex items-center gap-2 text-sm text-gray-200 mb-4">
                       <span className="bg-white/20 px-2 py-1 rounded text-xs">2023 Research</span>
                       <span>•</span>
-                      <span>Andrew Wright</span>
+                      <span>Rockota Research</span>
                     </div>
-                    
+
                     <h3 className="text-2xl md:text-3xl font-bold mb-4">
                       State-Level Impacts of Exchange Rate Fluctuations
                     </h3>
-                    
+
                     <p className="text-gray-100 mb-6 leading-relaxed">
-                      This research examines how exchange rate fluctuations affect different U.S. states 
-                      based on their economic composition, trade relationships, and industrial focus. 
-                      Through data analysis and economic modeling, we explore the heterogeneous impacts 
+                      This research examines how exchange rate fluctuations affect different U.S. states
+                      based on their economic composition, trade relationships, and industrial focus.
+                      Through data analysis and economic modeling, it explores the heterogeneous impacts
                       of currency movements across state economies.
                     </p>
 
@@ -169,14 +198,14 @@ const AboutPage = () => {
                     </div>
 
                     <div className="flex gap-4">
-                      <a 
-                        href="/research" 
+                      <a
+                        href="/research"
                         className="bg-white text-[#243975] px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors"
                       >
                         View Full Research
                       </a>
-                      <a 
-                        href="/research" 
+                      <a
+                        href="/research"
                         className="border border-white text-white px-6 py-3 rounded-lg font-medium hover:bg-white/10 transition-colors"
                       >
                         Explore More
@@ -189,7 +218,7 @@ const AboutPage = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Rockwell Section */}
       <div className="bg-gray-50 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -209,14 +238,14 @@ const AboutPage = () => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-[#d7c770]">Rockwell</h3>
-                    <p className="text-sm text-gray-400">The brain behind Rockota</p>
+                    <p className="text-sm text-gray-400">The voice of Rockota</p>
                   </div>
                 </div>
 
                 <div className="space-y-4 mb-8">
                   {[
                     { icon: '💬', label: 'Chat', desc: 'Conversational AI powered by local open-source models (Ollama) when running privately, or OpenAI in production.' },
-                    { icon: '📝', label: 'Vault', desc: 'A personal markdown vault backed by Azure Blob Storage. Write, organize, and search notes from anywhere.' },
+                    { icon: '📝', label: 'Vault', desc: 'A markdown vault backed by Azure Blob Storage. Write, organize, and search notes from anywhere.' },
                     { icon: '🕸️', label: 'Knowledge Graph', desc: 'Notes linked with [[wikilinks]] render as a live 3D force graph — explore how ideas connect.' },
                   ].map(({ icon, label, desc }) => (
                     <div key={label} className="flex gap-3">
@@ -245,7 +274,7 @@ const AboutPage = () => {
             {/* Right — copy */}
             <div className="lg:w-1/2">
               <h2 className="text-3xl font-bold text-[#243975] mb-4">
-                Meet Rockwell — The Brain Behind Rockota
+                Meet Rockwell — The Voice of Rockota
               </h2>
               <div className="w-24 h-1 bg-[#d7c770] mb-6"></div>
               <p className="text-lg text-gray-600 mb-4">
@@ -253,46 +282,45 @@ const AboutPage = () => {
                 of computing — when computers were still behemoths of metal and wires — there lived a
                 brilliant inventor named Rockwell. This visionary mind, with a passion for innovation
                 and progress, dared to dream of a world where humans and machines could coexist in
-                harmony. His tireless efforts inspired generations to come, and his legacy lived on in
-                the form of Rockota.
+                harmony. That spirit lives on in Rockota.
               </p>
               <p className="text-gray-600 mb-4">
-                Today, Rockwell is the brain behind Rockota — a nod to that pioneering spirit.
-                It combines a conversational assistant with a markdown note vault and a live
-                knowledge graph, all in one place.
+                If Rockota is the body of work, Rockwell is how it speaks: the part that hands the work
+                to others in plain language and teaches. It combines a conversational assistant with a
+                markdown note vault and a live knowledge graph, all in one place.
               </p>
               <p className="text-gray-600 mb-4">
-                Notes are stored privately in Azure Blob Storage and linked together with
+                Notes are stored in Azure Blob Storage and linked together with
                 wiki-style <code className="bg-gray-100 px-1 rounded text-sm">[[wikilinks]]</code>.
                 The graph view renders those links as a navigable 3D network, making it easy to
                 see how economics ideas, research, and projects connect to each other.
               </p>
               <p className="text-gray-600 mb-6">
                 Visitors can browse public notes and explore the knowledge graph. Log in for the full
-                experience — chat with Rockwell, write notes, and build your own knowledge base.
+                experience: chat with Rockwell, write notes, and build a knowledge base of your own.
               </p>
               <div className="flex flex-wrap gap-3">
                 <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">Open-source models</span>
                 <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">Markdown vault</span>
                 <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">3D knowledge graph</span>
-                <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">Private by default</span>
+                <span className="bg-[#243975]/10 text-[#243975] px-3 py-1.5 rounded-full text-sm font-medium">Public by default here</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-      {/* Vision Section */}
+      {/* What Rockota Is For */}
       <div className="bg-[#243975] text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">My Vision for Rockota</h2>
+            <h2 className="text-3xl font-bold mb-4">What Rockota Is For</h2>
             <div className="w-24 h-1 bg-[#d7c770] mx-auto mb-6"></div>
           </div>
           <div className="bg-[#243975]/40 p-8 rounded-lg border border-[#243975]/60 shadow-xl">
             <p className="text-xl text-gray-100 mb-6">
-              I believe that economic knowledge should be accessible to
-              everyone, not just those with formal education in the field. With
-              Rockota, I aim to:
+              Economic knowledge should be within reach of everyone, not only
+              those with formal training. That conviction sets Rockota&rsquo;s
+              three commitments:
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-[#243975]/60 p-6 rounded-lg">
@@ -300,35 +328,36 @@ const AboutPage = () => {
                   Democratize Economics
                 </h3>
                 <p className="text-gray-200">
-                  Make complex economic concepts accessible and understandable
-                  to everyone through interactive visualizations and plain
-                  language explanations.
+                  Make complex economic ideas clear and usable through
+                  interactive visualizations and plain-language explanations, so
+                  a curious neighbor gets as much from them as a specialist.
                 </p>
               </div>
               <div className="bg-[#243975]/60 p-6 rounded-lg">
                 <h3 className="text-xl font-semibold text-[#d7c770] mb-3">
-                  Bridge Theory & Practice
+                  Bridge Theory &amp; Practice
                 </h3>
                 <p className="text-gray-200">
-                  Connect academic economic theory with real-world applications
-                  and data to demonstrate how economics shapes our daily lives.
+                  Connect academic economic theory to real data and everyday
+                  life, showing how economics shapes the decisions people make
+                  every day.
                 </p>
               </div>
               <div className="bg-[#243975]/60 p-6 rounded-lg">
                 <h3 className="text-xl font-semibold text-[#d7c770] mb-3">
-                  Build Problem-Solving Tools
+                  Build Tools That Serve
                 </h3>
                 <p className="text-gray-200">
-                  Develop computational tools that leverage economic principles
-                  to address practical challenges in business, policy, and
-                  everyday decision-making.
+                  Develop computational tools grounded in economic principles to
+                  help with real challenges in business, policy, and ordinary
+                  decision-making. If it can&rsquo;t be used, it isn&rsquo;t
+                  finished.
                 </p>
               </div>
             </div>
             <p className="text-xl text-center text-[#d7c770] italic">
-              "By combining my passion for economics with my technical skills, I
-              hope to create a platform that inspires others to explore the
-              fascinating world of economic thought and its applications."
+              &ldquo;The work is never only for its maker. The destination is
+              always someone else. Whatever it takes.&rdquo;
             </p>
           </div>
         </div>
@@ -338,12 +367,12 @@ const AboutPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-[#243975] mb-4">
-              Connect with Me
+              Get in Touch
             </h2>
             <div className="w-24 h-1 bg-[#d7c770] mx-auto mb-6"></div>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-              Have questions about Rockota or interested in collaborating? I'd
-              love to hear from you.
+              Questions about Rockota, or interested in collaborating? Reach out
+              any time.
             </p>
             <div className="bg-gray-50 rounded-lg p-8 shadow-md border border-gray-100 max-w-xl mx-auto">
               <div className="flex flex-col items-center">
@@ -351,15 +380,15 @@ const AboutPage = () => {
                   <MailIcon size={32} className="text-[#243975]" />
                 </div>
                 <h3 className="text-xl font-semibold text-[#243975] mb-4">
-                  Get in Touch
+                  Send a Message
                 </h3>
                 <p className="text-gray-600 mb-6 text-center">
-                  Click the button below to send me an email. I'll get back to
-                  you as soon as possible.
+                  Click below to send an email, and you&rsquo;ll get a reply as
+                  soon as possible.
                 </p>
                 <a href="mailto:andrewwright2023@outlook.com?subject=Rockota%20Inquiry" className="inline-flex items-center px-6 py-3 bg-[#243975] text-white rounded-md hover:bg-[#243975]/90 transition-colors">
                   <MailIcon size={18} className="mr-2" />
-                  Email Me
+                  Email Rockota
                 </a>
               </div>
             </div>
