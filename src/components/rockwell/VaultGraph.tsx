@@ -2,7 +2,7 @@ import {
   lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import * as THREE from 'three';
-import { Loader2, Maximize2, Minimize2, NotebookText, Box, Square } from 'lucide-react';
+import { Loader2, Maximize2, Minimize2, NotebookText, Box, Square, Zap } from 'lucide-react';
 import { vaultGraph } from '../../lib/vault-api';
 
 // react-force-graph-3d uses three.js + WebGL — load lazily.
@@ -102,6 +102,7 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
       return localStorage.getItem(VIEW_MODE_KEY) === '2d' ? '2d' : '3d';
     } catch { return '3d'; }
   });
+  const [pulse, setPulse] = useState(false); // TEMP test toggle: fire particles along links
   const [data, setData] = useState<{ nodes: SimNode[]; links: SimLink[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -409,6 +410,25 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     return 'rgba(186,200,220,0.65)';
   }, [linkIsDim, hover, selectedPath]);
 
+  // TEMP (testing): "neurons firing" — periodically emit a particle along a
+  // random wikilink edge in 3D. Paused when the tab is hidden. Off by default.
+  useEffect(() => {
+    if (!pulse || viewMode !== '3d') return;
+    const links = graphData.links;
+    if (!links.length) return;
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      const fg = graphRef.current;
+      if (!fg || typeof fg.emitParticle !== 'function') return;
+      // Fire a couple of pulses per tick for a denser "firing" feel.
+      for (let k = 0; k < 2; k++) {
+        const link = links[Math.floor(Math.random() * links.length)];
+        try { fg.emitParticle(link); } catch { /* ignore */ }
+      }
+    }, 220);
+    return () => window.clearInterval(id);
+  }, [pulse, viewMode, graphData]);
+
   // 2D node painter — draws each note as a translucent, outlined circle so
   // overlapping nodes stay legible, with a small per-node shade variation so
   // notes in the same folder aren't all an identical flat color. Mirrors the
@@ -531,6 +551,9 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 linkWidth={linkWidth as any}
                 linkOpacity={0.85}
+                linkDirectionalParticleWidth={2.2}
+                linkDirectionalParticleSpeed={0.01}
+                linkDirectionalParticleColor={() => 'rgba(215,199,112,0.95)'}
                 linkDirectionalArrowLength={3}
                 linkDirectionalArrowRelPos={0.92}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -585,6 +608,13 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-rw-gold/25 bg-rw-surface/80 text-rw-foreground hover:bg-rw-surface backdrop-blur">
             {viewMode === '3d' ? <><Square size={14} />2D</> : <><Box size={14} />3D</>}
           </button>
+          {viewMode === '3d' && (
+            <button type="button" onClick={() => setPulse((p) => !p)}
+              title={pulse ? 'Stop pulse animation' : 'Pulse: fire particles along links (test)'}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border backdrop-blur ${pulse ? 'border-rw-gold/60 bg-rw-gold/20 text-rw-gold' : 'border-rw-gold/25 bg-rw-surface/80 text-rw-foreground hover:bg-rw-surface'}`}>
+              <Zap size={14} />{pulse ? 'Pulse on' : 'Pulse'}
+            </button>
+          )}
           <button type="button" onClick={handleZoomToFit}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-rw-gold/25 bg-rw-surface/80 text-rw-foreground hover:bg-rw-surface backdrop-blur">
             <Maximize2 size={14} />Fit
