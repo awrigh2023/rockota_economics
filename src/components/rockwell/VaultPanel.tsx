@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import {
   File, FilePlus, FolderOpen, FolderPlus, Search, Trash2, RefreshCw, Pencil,
   Copy, Link2, ExternalLink,
@@ -73,6 +73,7 @@ export default function VaultPanel({
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [ctx, setCtx] = useState<ContextMenuState>(null);
+  const seededOpen = useRef(false);
 
   useEffect(() => {
     let abort = false;
@@ -95,6 +96,26 @@ export default function VaultPanel({
   }, [ctx]);
 
   const tree = useMemo(() => buildTree(files, filter), [files, filter]);
+
+  // On first load, expand the scope groups ("My Notes" / "Public") so notes
+  // are visible without an extra click. Seeds once so later refreshes don't
+  // fight the user's collapse choices.
+  useEffect(() => {
+    if (seededOpen.current || files.length === 0) return;
+    const roots = new Set<string>();
+    for (const f of files) {
+      const scope = scopeGroup(f.path);
+      if (scope) roots.add(scope.root);
+    }
+    if (roots.size) {
+      setOpenFolders((prev) => {
+        const next = new Set(prev);
+        roots.forEach((r) => next.add(r));
+        return next;
+      });
+      seededOpen.current = true;
+    }
+  }, [files]);
 
   const performDrop = async (e: React.DragEvent, dropFolderPrefix: string) => {
     e.preventDefault();
@@ -315,15 +336,44 @@ function ContextMenu({
 
 type Folder = { name: string; path: string; files: VaultFile[]; folders: Folder[] };
 
+/**
+ * Map a blob path to its scope group: a friendly display label plus the true
+ * prefix that should be hidden from the folder hierarchy. Keeps the real
+ * parent folders (Rockota, Books, Libertas, …) at the top of each group while
+ * the underlying folder.path stays the full blob prefix so rename/move/create
+ * still operate on real paths.
+ */
+export function scopeGroup(path: string): { label: string; root: string } | null {
+  if (path.startsWith('notes/public/')) return { label: 'Public', root: 'notes/public/' };
+  const m = path.match(/^(notes\/users\/[^/]+\/)/);
+  if (m) return { label: 'My Notes', root: m[1] };
+  return null;
+}
+
 function buildTree(files: VaultFile[], filter: string): Folder {
   const root: Folder = { name: '', path: '', files: [], folders: [] };
   const lower = filter.trim().toLowerCase();
   for (const f of files) {
     if (lower && !f.path.toLowerCase().includes(lower) && !(f.title?.toLowerCase().includes(lower))) continue;
-    const segments = f.path.split('/');
-    const fileName = segments.pop()!;
+
     let node = root;
     let acc = '';
+    let segments: string[];
+
+    const scope = scopeGroup(f.path);
+    if (scope) {
+      // Group under a scope node (name = label, path = true scope root) and
+      // strip the prefix so the hierarchy starts at the real folders.
+      let group = node.folders.find((c) => c.path === scope.root);
+      if (!group) { group = { name: scope.label, path: scope.root, files: [], folders: [] }; node.folders.push(group); }
+      node = group;
+      acc = scope.root; // children accumulate their true full paths from here
+      segments = f.path.slice(scope.root.length).split('/');
+    } else {
+      segments = f.path.split('/');
+    }
+
+    const fileName = segments.pop()!;
     for (const seg of segments) {
       if (!seg) continue; // skip empty segments from leading/trailing slashes
       acc += seg + '/';
@@ -354,7 +404,7 @@ interface FolderNodeProps {
   onCreate: (p: string) => void;
   onContextMenu: (e: React.MouseEvent, target: ContextTarget) => void;
   dragOverPath: string | null;
-  setDragOverPath: (p: string | null) => void;
+  setDragOverPath: Dispatch<SetStateAction<string | null>>;
   setIsDragging: (b: boolean) => void;
   performDrop: (e: React.DragEvent, prefix: string) => Promise<void>;
   depth: number;

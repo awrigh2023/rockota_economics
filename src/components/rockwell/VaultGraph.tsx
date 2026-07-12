@@ -2,11 +2,16 @@ import {
   lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import * as THREE from 'three';
-import { Loader2, Maximize2, Minimize2, NotebookText } from 'lucide-react';
+import { Loader2, Maximize2, Minimize2, NotebookText, Box, Square } from 'lucide-react';
 import { vaultGraph } from '../../lib/vault-api';
 
 // react-force-graph-3d uses three.js + WebGL — load lazily.
 const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
+// react-force-graph-2d is canvas-based (no WebGL) — far lighter on CPU/GPU.
+const ForceGraph2D = lazy(() => import('react-force-graph-2d'));
+
+type ViewMode = '2d' | '3d';
+const VIEW_MODE_KEY = 'rockwell:graph:viewMode';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -92,6 +97,11 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
   const [focusedFolderPath, setFocusedFolderPath] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fullscreen, setFullscreen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      return localStorage.getItem(VIEW_MODE_KEY) === '2d' ? '2d' : '3d';
+    } catch { return '3d'; }
+  });
   const [data, setData] = useState<{ nodes: SimNode[]; links: SimLink[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -196,8 +206,9 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
   }, [graphData]);
 
   useEffect(() => {
+    if (viewMode !== '3d') return;
     const fg = graphRef.current;
-    if (!fg || size.width === 0 || size.height === 0) return;
+    if (!fg || typeof fg.renderer !== 'function' || size.width === 0 || size.height === 0) return;
     const renderer = fg.renderer();
     renderer.setClearColor(0x000000, 0);
     renderer.setClearAlpha(0);
@@ -209,7 +220,27 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     rim.position.set(400, -200, 300);
     scene.add(rim);
     return () => { scene.remove(fill); scene.remove(rim); fill.dispose(); rim.dispose(); };
-  }, [size.width, size.height]);
+  }, [size.width, size.height, viewMode]);
+
+  // Persist the 2D/3D choice, and refit the view whenever the mode changes.
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_MODE_KEY, viewMode); } catch { /* ignore */ }
+    const t = setTimeout(() => graphRef.current?.zoomToFit?.(600, 80), 400);
+    return () => clearTimeout(t);
+  }, [viewMode]);
+
+  // 2D layout: spread nodes out so the circles don't pile up on top of each
+  // other (stronger repulsion + longer links than the default). No-op in 3D.
+  useEffect(() => {
+    if (viewMode !== '2d') return;
+    const fg = graphRef.current;
+    if (!fg || !graphData.nodes.length || typeof fg.d3Force !== 'function') return;
+    const charge = fg.d3Force('charge');
+    if (charge?.strength) charge.strength(-110);
+    const link = fg.d3Force('link');
+    if (link?.distance) link.distance(42);
+    fg.d3ReheatSimulation?.();
+  }, [viewMode, graphData]);
 
   useEffect(() => {
     const fg = graphRef.current;
@@ -378,6 +409,59 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     return 'rgba(186,200,220,0.65)';
   }, [linkIsDim, hover, selectedPath]);
 
+  // 2D node painter — draws each note as a translucent, outlined circle so
+  // overlapping nodes stay legible, with a small per-node shade variation so
+  // notes in the same folder aren't all an identical flat color. Mirrors the
+  // 3D dim / selected / hover states.
+  const draw2DNode = useCallback((node: SimNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    if (node.x == null || node.y == null) return;
+    const id = node.id;
+    const hoveredId = hover?.node.id ?? null;
+    const neighbors = hoveredId ? adjacency.get(hoveredId) : null;
+    const passesFocus = !focusedFolderPath || nodeInFocus(node, focusedFolderPath);
+    const passesHover = !hoveredId || id === hoveredId || !!neighbors?.has(id);
+    const dim = !passesFocus || !passesHover;
+    const selected = id === selectedPath || id === hoveredId;
+
+    const hue = hashHue(node.topFolder || node.scope);
+    const sat = node.topFolder ? 78 : 28;
+    const baseL = node.scope === 'user' ? 68 : 56;
+    // Per-node lightness jitter (deterministic) so siblings differ slightly.
+    const jitter = (hashHue(node.id) % 26) - 13;
+    const L = Math.max(24, Math.min(84, baseL + jitter));
+    const r = radiusFor(node);
+
+    let fill: string;
+    let stroke: string;
+    if (dim) {
+      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.07)`;
+      stroke = 'rgba(186,200,220,0.06)';
+    } else if (selected) {
+      fill = 'rgba(245,158,11,0.92)';
+      stroke = 'rgba(255,255,255,0.9)';
+    } else {
+      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.78)`;
+      stroke = 'rgba(255,255,255,0.4)';
+    }
+
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = Math.max(0.35, (selected ? 1.6 : 0.8) / globalScale);
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+  }, [hover, adjacency, focusedFolderPath, selectedPath]);
+
+  // Hit-area paint so hover/click detection matches the drawn circle.
+  const pointer2DNode = useCallback((node: SimNode, color: string, ctx: CanvasRenderingContext2D) => {
+    if (node.x == null || node.y == null) return;
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, radiusFor(node), 0, 2 * Math.PI);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }, []);
+
   const handleZoomToFit = useCallback(() => { graphRef.current?.zoomToFit(800, 80); }, []);
 
   const hasData = graphData.nodes.length > 0;
@@ -432,39 +516,75 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
         )}
         {hasData && size.width > 0 && size.height > 0 && (
           <Suspense fallback={null}>
-            <ForceGraph3D
-              ref={graphRef}
-              width={size.width}
-              height={size.height}
-              graphData={graphData}
-              backgroundColor="rgba(0,0,0,0)"
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              nodeThreeObject={nodeThreeObject as any}
-              nodeThreeObjectExtend={false}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              linkColor={linkColor as any}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              linkWidth={linkWidth as any}
-              linkOpacity={0.85}
-              linkDirectionalArrowLength={3}
-              linkDirectionalArrowRelPos={0.92}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              linkDirectionalArrowColor={linkArrowColor as any}
-              cooldownTicks={200}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              onNodeClick={handleNodeClick as any}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              onNodeHover={handleNodeHover as any}
-              onBackgroundClick={() => setHover(null)}
-              enableNodeDrag={false}
-              enableNavigationControls
-              controlType="orbit"
-              showNavInfo={false}
-            />
+            {viewMode === '3d' ? (
+              <ForceGraph3D
+                ref={graphRef}
+                width={size.width}
+                height={size.height}
+                graphData={graphData}
+                backgroundColor="rgba(0,0,0,0)"
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                nodeThreeObject={nodeThreeObject as any}
+                nodeThreeObjectExtend={false}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                linkColor={linkColor as any}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                linkWidth={linkWidth as any}
+                linkOpacity={0.85}
+                linkDirectionalArrowLength={3}
+                linkDirectionalArrowRelPos={0.92}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                linkDirectionalArrowColor={linkArrowColor as any}
+                cooldownTicks={200}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onNodeClick={handleNodeClick as any}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onNodeHover={handleNodeHover as any}
+                onBackgroundClick={() => setHover(null)}
+                enableNodeDrag={false}
+                enableNavigationControls
+                controlType="orbit"
+                showNavInfo={false}
+              />
+            ) : (
+              <ForceGraph2D
+                ref={graphRef}
+                width={size.width}
+                height={size.height}
+                graphData={graphData}
+                backgroundColor="rgba(0,0,0,0)"
+                nodeRelSize={4}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                nodeCanvasObject={draw2DNode as any}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                nodePointerAreaPaint={pointer2DNode as any}
+                nodeLabel={() => ''}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                linkColor={linkColor as any}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                linkWidth={linkWidth as any}
+                linkDirectionalArrowLength={3}
+                linkDirectionalArrowRelPos={0.92}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                linkDirectionalArrowColor={linkArrowColor as any}
+                cooldownTicks={200}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onNodeClick={handleNodeClick as any}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onNodeHover={handleNodeHover as any}
+                onBackgroundClick={() => setHover(null)}
+                enableNodeDrag={false}
+              />
+            )}
           </Suspense>
         )}
 
         <div className="absolute top-3 right-3 flex items-center gap-2">
+          <button type="button" onClick={() => setViewMode((m) => (m === '3d' ? '2d' : '3d'))}
+            title={viewMode === '3d' ? 'Switch to 2D (lighter on CPU)' : 'Switch to 3D'}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-rw-gold/25 bg-rw-surface/80 text-rw-foreground hover:bg-rw-surface backdrop-blur">
+            {viewMode === '3d' ? <><Square size={14} />2D</> : <><Box size={14} />3D</>}
+          </button>
           <button type="button" onClick={handleZoomToFit}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-rw-gold/25 bg-rw-surface/80 text-rw-foreground hover:bg-rw-surface backdrop-blur">
             <Maximize2 size={14} />Fit
@@ -522,7 +642,8 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
           {graphData.nodes.length} notes · {graphData.links.length} links
           {orphanCount > 0 && ` · ${orphanCount} orphans`}
           {focusedFolderPath && ` · focused: ${focusedFolderPath}`}
-          {' · drag to rotate · click folder to focus'}
+          {viewMode === '3d' ? ' · drag to rotate' : ' · scroll to zoom · drag to pan'}
+          {' · click folder to focus'}
         </div>
 
         {hover && (
