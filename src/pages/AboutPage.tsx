@@ -356,8 +356,8 @@ const AboutPage = () => {
               </div>
             </div>
             <p className="text-xl text-center text-[#d7c770] italic">
-              &ldquo;The work is never only for its maker. The destination is
-              always someone else. Whatever it takes.&rdquo;
+              &ldquo;Making economics more understandable, more efficient, and
+              more democratized. Whatever it takes.&rdquo;
             </p>
           </div>
         </div>
