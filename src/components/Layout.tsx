@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { BookOpenIcon, PackageIcon, HomeIcon, FlaskConicalIcon, BotIcon, Menu, X } from 'lucide-react';
+import { BookOpenIcon, PackageIcon, HomeIcon, FlaskConicalIcon, BotIcon, LayoutDashboardIcon, Menu, X } from 'lucide-react';
 import UserMenu from './UserMenu';
+import { useAuth } from '../context/AuthContext';
+import { isOwner } from '../lib/console';
 const Layout = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
+  const showConsole = isOwner(user);
   const isActive = (path: string) => {
     if (path === '/' && location.pathname === '/') return true;
     if (path !== '/' && location.pathname.startsWith(path)) return true;
@@ -48,6 +52,12 @@ const Layout = () => {
               <BotIcon size={18} />
               <span>Rockwell</span>
             </Link>
+            {showConsole && (
+              <Link to="/console" className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${isActive('/console') ? 'bg-[#243975] text-white' : 'text-[#008080] hover:bg-[#008080]/10'}`}>
+                <LayoutDashboardIcon size={18} />
+                <span>Console</span>
+              </Link>
+            )}
           </nav>
 
           {/* Account (user icon / dropdown) -- always visible */}
@@ -107,6 +117,16 @@ const Layout = () => {
                 <BotIcon size={20} />
                 <span>Rockwell</span>
               </Link>
+              {showConsole && (
+                <Link
+                  to="/console"
+                  className={`flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium ${isActive('/console') ? 'bg-[#243975] text-white' : 'text-[#008080] hover:bg-[#008080]/10'}`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <LayoutDashboardIcon size={20} />
+                  <span>Console</span>
+                </Link>
+              )}
             </div>
           </div>
         )}

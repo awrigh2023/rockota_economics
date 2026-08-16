@@ -46,40 +46,107 @@ function remarkWikiLinks(): (tree: any) => void {
   };
 }
 
-// ── PlotBlock — renders ```plot fenced blocks as a chart ────────────────────
-// Minimal version using function-plot; skips rendering if the lib isn't loaded.
+// ── PlotBlock — renders ```plot fenced blocks as an interactive chart ─────────
+// YAML spec → function-plot. Supports:
+//   • functions: curves (expr), with optional domain `range`, area shading
+//     `closed`/`area: [a,b]` (integrals), a static `tangent: {at, deriv}`
+//     (derivatives), and `secant: {at, to, track}` (limit of secants → tangent).
+//   • points: standalone points ({at:[x,y]} or {coords:[[x,y],…], join:true}).
+//   • lines: straight segments through two points ({through:[[x,y],[x,y]]}) —
+//     secants/chords with no algebra needed.
+//   • markers / asymptotes: x or y reference lines ({x|y, label}).
+// Backwards compatible with the original {functions:[{expr,color}], xRange,
+// yRange, xLabel, yLabel} spec. Skips rendering if the lib isn't loaded.
 function PlotBlock({ source }: { source: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let cancelled = false;
-    import('function-plot').then(({ default: functionPlot }) => {
-      if (cancelled || !ref.current) return;
-      import('js-yaml').then(({ load }) => {
+    Promise.all([import('function-plot'), import('js-yaml')])
+      .then(([{ default: functionPlot }, { load }]) => {
         if (cancelled || !ref.current) return;
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const cfg: any = load(source);
+          const cfg: any = load(source) || {};
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const data: any[] = [];
+
+          // Curves — with optional domain restriction, area shading, tangent, secant.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const f of (cfg.functions || []) as any[]) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const d: any = { fn: f.expr, graphType: f.type === 'scatter' ? 'scatter' : 'polyline' };
+            if (f.color) d.color = f.color;
+            let range = f.range;
+            let closed = f.closed;
+            if (Array.isArray(f.area)) { range = f.area; closed = true; }
+            if (Array.isArray(range)) d.range = range;
+            if (closed) d.closed = true;
+            if (f.tangent && f.tangent.deriv != null && f.tangent.at != null) {
+              d.derivative = { fn: String(f.tangent.deriv), x0: f.tangent.at, updateOnMouseMove: !!f.tangent.track };
+            }
+            if (f.secant && f.secant.at != null) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const sec: any = { x0: f.secant.at, updateOnMouseMove: !!f.secant.track };
+              if (f.secant.to != null) sec.x1 = f.secant.to;
+              d.secants = [sec];
+            }
+            data.push(d);
+          }
+
+          // Standalone points (scatter by default, or joined polyline).
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const p of (cfg.points || []) as any[]) {
+            const coords = p.coords || (p.at ? [p.at] : []);
+            if (!coords.length) continue;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const d: any = { points: coords, fnType: 'points', graphType: p.join ? 'polyline' : 'scatter' };
+            if (p.color) d.color = p.color;
+            data.push(d);
+          }
+
+          // Straight lines through two points (secants / chords).
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const ln of (cfg.lines || []) as any[]) {
+            if (!Array.isArray(ln.through) || ln.through.length < 2) continue;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const d: any = { points: ln.through, fnType: 'points', graphType: 'polyline' };
+            if (ln.color) d.color = ln.color;
+            data.push(d);
+          }
+
+          // Reference markers / asymptotes → annotations (x or y line + label).
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const annotations: any[] = [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const m of ((cfg.markers || cfg.asymptotes) || []) as any[]) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const a: any = {};
+            if (m.x != null) a.x = m.x;
+            if (m.y != null) a.y = m.y;
+            if (m.label) a.text = m.label;
+            if (a.x != null || a.y != null) annotations.push(a);
+          }
+
           ref.current.innerHTML = '';
-          functionPlot({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const opts: any = {
             target: ref.current,
             width: cfg.width || 480,
             height: cfg.height || 280,
+            grid: cfg.grid !== false,
             xAxis: { domain: cfg.xRange, label: cfg.xLabel ? `${cfg.xLabel}${cfg.xUnit ? ` (${cfg.xUnit})` : ''}` : undefined },
             yAxis: { domain: cfg.yRange, label: cfg.yLabel ? `${cfg.yLabel}${cfg.yUnit ? ` (${cfg.yUnit})` : ''}` : undefined },
-            grid: cfg.grid !== false,
-            data: (cfg.functions || []).map((f: { expr: string; label?: string; style?: string; color?: string }) => ({
-              fn: f.expr,
-              graphType: 'polyline',
-              ...(f.color ? { color: f.color } : {}),
-            })),
-          });
+            data,
+          };
+          if (annotations.length) opts.annotations = annotations;
+          functionPlot(opts);
         } catch (e) {
           if (ref.current) ref.current.innerHTML = `<pre style="color:red;font-size:11px">Plot error: ${e}</pre>`;
         }
+      })
+      .catch(() => {
+        if (ref.current) ref.current.innerHTML = '<pre style="color:#888;font-size:11px">Plot library not installed yet.</pre>';
       });
-    }).catch(() => {
-      if (ref.current) ref.current.innerHTML = '<pre style="color:#888;font-size:11px">Plot library not installed yet.</pre>';
-    });
     return () => { cancelled = true; };
   }, [source]);
   return <div ref={ref} className="my-2" />;

@@ -107,4 +107,29 @@ export async function vaultGraph(token?: string | null): Promise<{ nodes: unknow
   return res.json();
 }
 
+// ── Search ────────────────────────────────────────────────────────────────
+
+export interface SearchHit {
+  path: string;
+  snippet: string;
+  /** "public" for shared notes, "user" for the authenticated user's private notes. */
+  scope?: 'public' | 'user';
+}
+
+/**
+ * Substring search across note content.
+ * Auth scope is enforced server-side: without a token only public notes are
+ * searched; with a token the user's private notes are included too.
+ */
+export async function vaultSearch(
+  q: string,
+  token?: string | null,
+  maxResults = 30,
+  signal?: AbortSignal,
+): Promise<{ hits: SearchHit[] }> {
+  const params = new URLSearchParams({ q, max_results: String(maxResults) });
+  const res = await apiFetch(`/api/vault/search?${params.toString()}`, { token, signal });
+  return res.json();
+}
+
 export { API_URL };
