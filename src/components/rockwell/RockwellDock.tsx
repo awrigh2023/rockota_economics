@@ -27,7 +27,7 @@ import {
   getPreferredModel, setPreferredModel, prettyModel,
   getSource, setSource, ModelSource, ModelStatus, LocalMsg,
 } from '../../lib/localModel';
-import { isOwner, loadBoard, saveBoard, newId, Board, Task } from '../../lib/console';
+import { isOwner, loadBoard, saveBoard, newId, HORIZON_LABEL, HORIZONS, Board, Task, Goal } from '../../lib/console';
 import { vaultSearch, API_URL } from '../../lib/vault-api';
 import {
   listChats, loadChat, saveChat, renameChat, archiveChat as archiveChatStore,
@@ -57,6 +57,7 @@ const PERSONA =
 type ChatMsg = { role: 'user' | 'assistant'; content: string; sources?: string[] };
 type ChatSession = { messages: ChatMsg[]; streaming: boolean };
 type ActiveTaskRef = { id: string; title: string; bucket: string };
+type GoalRef = { id: string; title: string; horizon: string };
 const MAX_CONCURRENT = 4; // cap on chats generating at the same time
 
 // The Rockwell mark — master tiled icon, with an inline orb onError fallback.
@@ -119,12 +120,15 @@ export default function RockwellDock() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   // Console integration (fullscreen): task board + the task we're focused on.
-  const [sidebarTab, setSidebarTab] = useState<'chats' | 'tasks'>('chats');
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'tasks' | 'goals'>('chats');
   const [board, setBoard] = useState<Board | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskBucketId, setNewTaskBucketId] = useState('');
   const [taskByChat, setTaskByChat] = useState<Record<string, ActiveTaskRef | null>>(() => {
     try { return JSON.parse(localStorage.getItem('rw_task_by_chat') || '{}'); } catch { return {}; }
+  });
+  const [goalByChat, setGoalByChat] = useState<Record<string, GoalRef | null>>(() => {
+    try { return JSON.parse(localStorage.getItem('rw_goal_by_chat') || '{}'); } catch { return {}; }
   });
   // Vault grounding: search the vault each turn and feed matches to the model.
   const [ground, setGround] = useState<boolean>(() => localStorage.getItem('rw_vault_ctx') !== '0');
@@ -147,16 +151,18 @@ export default function RockwellDock() {
   }, [open, fullscreen]);
   useEffect(() => { localStorage.setItem('rw_vault_ctx', ground ? '1' : '0'); }, [ground]);
   useEffect(() => { localStorage.setItem('rw_task_by_chat', JSON.stringify(taskByChat)); }, [taskByChat]);
+  useEffect(() => { localStorage.setItem('rw_goal_by_chat', JSON.stringify(goalByChat)); }, [goalByChat]);
   useEffect(() => { if (activeId) localStorage.setItem('rw_active_chat', activeId); }, [activeId]);
 
-  // (Re)load the console board whenever the Tasks tab is shown or a task is
-  // focused — so buckets/tasks added elsewhere (e.g. the Console page) appear.
+  // (Re)load the console board whenever the Tasks/Goals tab is shown or a task/
+  // goal is focused — so items added elsewhere (e.g. the Console page) appear.
   useEffect(() => {
-    const hasTask = !!(activeId && taskByChat[activeId]);
-    if (open && owner && token && (hasTask || (fullscreen && sidebarTab === 'tasks'))) {
+    const hasFocus = !!(activeId && (taskByChat[activeId] || goalByChat[activeId]));
+    const tabWantsBoard = fullscreen && (sidebarTab === 'tasks' || sidebarTab === 'goals');
+    if (open && owner && token && (hasFocus || tabWantsBoard)) {
       loadBoard(token).then(setBoard).catch(() => { /* keep existing */ });
     }
-  }, [open, owner, token, fullscreen, sidebarTab, activeId, taskByChat]);
+  }, [open, owner, token, fullscreen, sidebarTab, activeId, taskByChat, goalByChat]);
 
   const check = useCallback(() => {
     setStatus(null);
@@ -222,6 +228,8 @@ export default function RockwellDock() {
   const messages = (activeId && sessions[activeId]?.messages) || [];
   const streaming = !!(activeId && sessions[activeId]?.streaming);
   const activeTask: ActiveTaskRef | null = activeId ? (taskByChat[activeId] ?? null) : null;
+  const activeGoal: GoalRef | null = activeId ? (goalByChat[activeId] ?? null) : null;
+  const activeGoalFull = activeGoal ? board?.goals?.find((g) => g.id === activeGoal.id) ?? null : null;
   const runningCount = Object.values(sessions).filter((s) => s.streaming).length;
   const patchSession = (id: string, up: (s: ChatSession) => ChatSession) =>
     setSessions((prev) => ({ ...prev, [id]: up(prev[id] || { messages: [], streaming: false }) }));
@@ -345,6 +353,33 @@ export default function RockwellDock() {
     }
   }
 
+  function goalContextFor(gref: GoalRef | null): LocalMsg | null {
+    if (!gref) return null;
+    const full = board?.goals?.find((g) => g.id === gref.id);
+    const notes = full?.notes?.trim();
+    return {
+      role: 'system',
+      content:
+        `The user is working toward a goal from their Rockota console: "${gref.title}" ` +
+        `(horizon: ${gref.horizon}${full ? `, ${full.progress}% complete` : ''}).` +
+        (notes ? `\nGoal notes:\n${notes}` : '') +
+        '\nHelp make concrete progress toward it: suggest next actions, and if we make real headway, propose updating its progress with console_set_goal_progress (confirm first).',
+    };
+  }
+
+  function focusGoal(g: Goal) {
+    const id = newChatId();
+    const gref: GoalRef = { id: g.id, title: g.title, horizon: g.horizon };
+    setSessions((prev) => ({ ...prev, [id]: { messages: [], streaming: false } }));
+    setGoalByChat((prev) => ({ ...prev, [id]: gref }));
+    setActiveId(id);
+    setInput('');
+    setShowChats(false);
+    if (status?.connected && model) {
+      send(`Let's make progress on my goal: "${g.title}" (currently ${g.progress}%). What are the highest-leverage next steps, and what would move the needle most?`, id, undefined, gref);
+    }
+  }
+
   async function completeTask() {
     if (!activeId) return;
     const at = taskByChat[activeId];
@@ -354,7 +389,7 @@ export default function RockwellDock() {
     patchSession(activeId, (s) => ({ ...s, messages: [...s.messages, { role: 'assistant', content: `✓ Marked **${at.title}** complete on your console.` }] }));
   }
 
-  async function send(overrideText?: string, targetId?: string, taskOverride?: ActiveTaskRef) {
+  async function send(overrideText?: string, targetId?: string, taskOverride?: ActiveTaskRef, goalOverride?: GoalRef) {
     const chatId = targetId ?? activeId;
     const text = (overrideText ?? input).trim();
     if (!text || !chatId || !status?.connected || !model) return;
@@ -400,9 +435,11 @@ export default function RockwellDock() {
     }
 
     const taskMsg = taskContextFor(taskOverride ?? taskByChat[chatId] ?? null);
+    const goalMsg = goalContextFor(goalOverride ?? goalByChat[chatId] ?? null);
     const req: LocalMsg[] = [
       { role: 'system', content: PERSONA },
       ...(taskMsg ? [taskMsg] : []),
+      ...(goalMsg ? [goalMsg] : []),
       ...(contextMsg ? [contextMsg] : []),
       ...history,
       { role: 'user', content: text },
@@ -595,6 +632,44 @@ export default function RockwellDock() {
     </>
   );
 
+  // Console goals (fullscreen Goals tab), grouped by horizon with progress bars.
+  const goalListInner = (
+    <>
+      {!board ? (
+        <p className="text-[12px] text-center mt-6" style={{ color: 'rgba(0,0,0,0.45)' }}>Loading your console…</p>
+      ) : (board.goals?.length ?? 0) === 0 ? (
+        <p className="text-[12px] text-center mt-6" style={{ color: 'rgba(0,0,0,0.45)' }}>No goals yet. Add them in the Console.</p>
+      ) : (
+        HORIZONS.map((h) => {
+          const items = (board.goals || []).filter((g) => g.horizon === h);
+          if (!items.length) return null;
+          return (
+            <div key={h} className="mb-3">
+              <div className="text-[10px] uppercase tracking-wide mb-1 px-1" style={{ color: 'rgba(0,0,0,0.4)' }}>{HORIZON_LABEL[h]}</div>
+              <ul className="space-y-1.5">
+                {items.map((g) => (
+                  <li key={g.id}>
+                    <button onClick={() => focusGoal(g)} title={g.title}
+                      className="w-full text-left rounded-md px-2 py-1.5"
+                      style={{ background: activeGoal?.id === g.id ? `${GOLD}1f` : 'transparent', border: `1px solid ${activeGoal?.id === g.id ? `${GOLD}44` : 'transparent'}` }}>
+                      <div className="flex items-center gap-2">
+                        <span className="flex-1 min-w-0 truncate text-[13px]" style={{ color: '#1f2a44' }}>{g.title}</span>
+                        <span className="text-[10px]" style={{ color: 'rgba(0,0,0,0.5)' }}>{g.progress}%</span>
+                      </div>
+                      <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.08)' }}>
+                        <div style={{ width: `${Math.max(0, Math.min(100, g.progress))}%`, height: '100%', background: GOLD }} />
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+
   return (
     <div
       className="fixed z-[60] flex flex-col rounded-2xl shadow-2xl overflow-hidden"
@@ -681,23 +756,23 @@ export default function RockwellDock() {
       {showSidebar && (
         <aside className="w-60 shrink-0 flex flex-col overflow-hidden" style={{ borderRight: `1px solid ${GOLD}22`, background: PANEL }}>
           <div className="flex items-center gap-1 px-2.5 pt-3 pb-2">
-            {(['chats', 'tasks'] as const).map((tab) => (
+            {(['chats', 'tasks', 'goals'] as const).map((tab) => (
               <button key={tab} onClick={() => setSidebarTab(tab)}
-                className="flex-1 rounded-md py-1 text-[11px] font-medium"
+                className="flex-1 rounded-md py-1 text-[11px] font-medium capitalize"
                 style={sidebarTab === tab
                   ? { background: GOLD, color: NAVY }
                   : { background: 'transparent', color: 'rgba(0,0,0,0.6)', border: `1px solid ${GOLD}33` }}>
-                {tab === 'chats' ? 'Chats' : 'Tasks'}
+                {tab}
               </button>
             ))}
-            {sidebarTab === 'tasks' && (
-              <button onClick={refreshBoard} title="Refresh tasks" className="p-1 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
+            {sidebarTab !== 'chats' && (
+              <button onClick={refreshBoard} title="Refresh from console" className="p-1 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
                 <RefreshCwIcon size={13} />
               </button>
             )}
           </div>
           <div className="flex-1 overflow-y-auto px-2.5 pb-3">
-            {sidebarTab === 'chats' ? chatListInner : taskListInner}
+            {sidebarTab === 'chats' ? chatListInner : sidebarTab === 'tasks' ? taskListInner : goalListInner}
           </div>
         </aside>
       )}
@@ -712,6 +787,21 @@ export default function RockwellDock() {
           <button onClick={() => { if (activeId) setTaskByChat((prev) => ({ ...prev, [activeId]: null })); }} title="Unfocus task" className="p-1 rounded hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
             <XIcon size={13} />
           </button>
+        </div>
+      )}
+      {activeGoal && (
+        <div className="px-3 py-2" style={{ background: `${GOLD}14`, borderBottom: `1px solid ${GOLD}22` }}>
+          <div className="flex items-center gap-2 text-[12px]">
+            <span style={{ color: 'rgba(0,0,0,0.6)' }}>Goal:</span>
+            <span className="flex-1 min-w-0 truncate font-medium" style={{ color: '#0f2e2e' }} title={activeGoal.title}>{activeGoal.title}</span>
+            <span className="text-[11px]" style={{ color: 'rgba(0,0,0,0.55)' }}>{activeGoalFull?.progress ?? 0}%</span>
+            <button onClick={() => { if (activeId) setGoalByChat((prev) => ({ ...prev, [activeId]: null })); }} title="Unfocus goal" className="p-1 rounded hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
+              <XIcon size={13} />
+            </button>
+          </div>
+          <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.08)' }}>
+            <div style={{ width: `${Math.max(0, Math.min(100, activeGoalFull?.progress ?? 0))}%`, height: '100%', background: GOLD, transition: 'width .3s' }} />
+          </div>
         </div>
       )}
       {owner && !fullscreen && showChats ? (
