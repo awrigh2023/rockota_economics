@@ -29,6 +29,7 @@ import {
 } from '../../lib/localModel';
 import { isOwner, loadBoard, saveBoard, newId, HORIZON_LABEL, HORIZONS, Board, Task, Goal } from '../../lib/console';
 import { vaultSearch, API_URL } from '../../lib/vault-api';
+import { loadQuotes, VaultQuote } from '../../lib/quotes';
 import {
   listChats, loadChat, saveChat, renameChat, archiveChat as archiveChatStore,
   newChatId, autoTitle, ChatMeta, Chat,
@@ -133,6 +134,8 @@ export default function RockwellDock() {
   // Vault grounding: search the vault each turn and feed matches to the model.
   const [ground, setGround] = useState<boolean>(() => localStorage.getItem('rw_vault_ctx') !== '0');
   const [grounding, setGrounding] = useState<string | null>(null);
+  const [quotes, setQuotes] = useState<VaultQuote[]>([]);
+  const [quoteIdx, setQuoteIdx] = useState(0);
   const allowWrites = true; // always on; writes are still gated by propose-before-write in the bridge.
   const abortRefs = useRef<Record<string, AbortController>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -188,6 +191,15 @@ export default function RockwellDock() {
     if (open && owner && token) listChats(token).then(setChats).catch(() => setChats([]));
   }, [open, owner, token]);
 
+  // Pull a few quotes from the vault to sprinkle at the top of the dock.
+  useEffect(() => {
+    if (open && owner && token && quotes.length === 0) {
+      loadQuotes(token).then((qs) => {
+        if (qs.length) { setQuotes(qs); setQuoteIdx(Math.floor(Math.random() * qs.length)); }
+      }).catch(() => { /* no quotes — no strip */ });
+    }
+  }, [open, owner, token, quotes.length]);
+
   // Restore the active chat's messages on open (sessions aren't kept across reloads).
   useEffect(() => {
     if (open && activeId && token && !sessions[activeId]) {
@@ -231,6 +243,7 @@ export default function RockwellDock() {
   const activeGoal: GoalRef | null = activeId ? (goalByChat[activeId] ?? null) : null;
   const activeGoalFull = activeGoal ? board?.goals?.find((g) => g.id === activeGoal.id) ?? null : null;
   const runningCount = Object.values(sessions).filter((s) => s.streaming).length;
+  const quote = quotes.length ? quotes[quoteIdx % quotes.length] : null;
   const patchSession = (id: string, up: (s: ChatSession) => ChatSession) =>
     setSessions((prev) => ({ ...prev, [id]: up(prev[id] || { messages: [], streaming: false }) }));
 
@@ -750,6 +763,18 @@ export default function RockwellDock() {
           </select>
         )}
       </div>
+
+      {/* Vault quote strip (click to shuffle) */}
+      {quote && (
+        <button
+          onClick={() => quotes.length > 1 && setQuoteIdx((i) => (i + 1 + Math.floor(Math.random() * (quotes.length - 1))) % quotes.length)}
+          title={quotes.length > 1 ? 'Another quote' : undefined}
+          className="w-full px-4 py-1.5 text-[11px] italic text-center leading-snug"
+          style={{ color: 'rgba(0,0,0,0.5)', background: NAVY, borderBottom: `1px solid ${GOLD}14` }}
+        >
+          “{quote.text}”{quote.author ? ` — ${quote.author}` : ''}
+        </button>
+      )}
 
       {/* Body: optional chat sidebar (fullscreen) + main column */}
       <div className="flex-1 flex min-h-0">
