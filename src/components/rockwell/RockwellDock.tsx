@@ -730,6 +730,9 @@ export default function RockwellDock() {
       className="fixed z-[60] flex flex-col rounded-2xl shadow-2xl overflow-hidden"
       style={{ ...posStyle, background: NAVY, border: `1px solid ${GOLD}33`, color: '#1f2a44' }}
     >
+      {/* Keep long content (code, URLs, tables) inside the bubble on any screen */}
+      <style>{`.rw-md{overflow-wrap:anywhere;word-break:break-word}.rw-md pre{max-width:100%;overflow-x:auto}.rw-md code{white-space:pre-wrap;word-break:break-word}.rw-md pre code{white-space:pre}.rw-md table{display:block;max-width:100%;overflow-x:auto}.rw-md img{max-width:100%;height:auto}`}</style>
+
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3" style={{ background: PANEL, borderBottom: `1px solid ${GOLD}22` }}>
         <RockwellOrb size={24} state={streaming ? 'thinking' : 'idle'} />
@@ -925,8 +928,8 @@ export default function RockwellDock() {
             )}
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                <div className="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
-                  style={m.role === 'user' ? { background: GOLD, color: NAVY } : { background: PANEL, color: '#1f2a44', border: `1px solid ${GOLD}1a` }}>
+                <div className="max-w-[85%] min-w-0 break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+                  style={m.role === 'user' ? { background: GOLD, color: NAVY, overflowWrap: 'anywhere' } : { background: PANEL, color: '#1f2a44', border: `1px solid ${GOLD}1a`, overflowWrap: 'anywhere' }}>
                   {m.role === 'assistant' ? (
                     <div className="rw-md">
                       {m.content ? (
@@ -943,7 +946,7 @@ export default function RockwellDock() {
                       )}
                     </div>
                   ) : (
-                    <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+                    <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.content}</span>
                   )}
                 </div>
               </div>
