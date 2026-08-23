@@ -27,7 +27,7 @@ import {
   getPreferredModel, setPreferredModel, prettyModel,
   getSource, setSource, ModelSource, ModelStatus, LocalMsg,
 } from '../../lib/localModel';
-import { isOwner, loadBoard, saveBoard, newId, HORIZON_LABEL, HORIZONS, Board, Task, Goal } from '../../lib/console';
+import { isOwner, loadBoard, saveBoard, newId, HORIZON_LABEL, HORIZONS, STATUS_LABEL, PRIORITY_LABEL, Board, Task, Goal } from '../../lib/console';
 import { vaultSearch, API_URL } from '../../lib/vault-api';
 import { loadQuotes, VaultQuote } from '../../lib/quotes';
 import {
@@ -129,6 +129,7 @@ export default function RockwellDock() {
   const [board, setBoard] = useState<Board | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskBucketId, setNewTaskBucketId] = useState('');
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [taskByChat, setTaskByChat] = useState<Record<string, ActiveTaskRef | null>>(() => {
     try { return JSON.parse(localStorage.getItem('rw_task_by_chat') || '{}'); } catch { return {}; }
   });
@@ -605,6 +606,30 @@ export default function RockwellDock() {
     <>
       {!board ? (
         <p className="text-[12px] text-center mt-6" style={{ color: 'rgba(0,0,0,0.45)' }}>Loading your console…</p>
+      ) : detailTask ? (
+        <div>
+          <button onClick={() => setDetailTask(null)} className="text-[11px] mb-2" style={{ color: GOLD }}>← Tasks</button>
+          <div className="text-sm font-semibold" style={{ color: '#0f2e2e' }}>{detailTask.title}</div>
+          <div className="text-[11px] mt-1" style={{ color: 'rgba(0,0,0,0.5)' }}>
+            {board.buckets.find((x) => x.id === detailTask.bucketId)?.name || '—'}
+            {` · ${STATUS_LABEL[detailTask.status]}`}
+            {detailTask.priority !== 'none' ? ` · ${PRIORITY_LABEL[detailTask.priority]}` : ''}
+            {detailTask.due ? ` · due ${detailTask.due}` : ''}
+          </div>
+          {detailTask.notes?.trim() ? (
+            <div className="rw-md mt-2 text-[13px]" style={{ color: '#1f2a44' }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{detailTask.notes}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="mt-2 text-[12px]" style={{ color: 'rgba(0,0,0,0.4)' }}>No notes.</p>
+          )}
+          <button
+            onClick={() => { if (!detailTask) return; const t = detailTask; const bn = board.buckets.find((x) => x.id === t.bucketId)?.name || ''; setDetailTask(null); startTask(t, bn); }}
+            className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium"
+            style={{ background: GOLD, color: NAVY }}>
+            Work on this with Rockwell
+          </button>
+        </div>
       ) : (
       <>
         {/* Quick add */}
@@ -645,7 +670,7 @@ export default function RockwellDock() {
               <ul className="space-y-1">
                 {items.map((t) => (
                   <li key={t.id}>
-                    <button onClick={() => startTask(t, b.name)} title={t.title}
+                    <button onClick={() => setDetailTask(t)} title={t.title}
                       className="w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2"
                       style={{ background: activeTask?.id === t.id ? `${GOLD}1f` : 'transparent', border: `1px solid ${activeTask?.id === t.id ? `${GOLD}44` : 'transparent'}` }}>
                       <span style={{ width: 6, height: 6, borderRadius: 99, flexShrink: 0, background: t.status === 'doing' ? '#f59e0b' : 'rgba(0,0,0,0.3)' }} />
