@@ -690,10 +690,9 @@ export default function RockwellDock() {
     >
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3" style={{ background: PANEL, borderBottom: `1px solid ${GOLD}22` }}>
-        <RockwellOrb size={24} state={streaming ? 'thinking' : 'idle'} />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold leading-tight" style={{ color: '#0f2e2e' }}>Rockwell</div>
-          <div className="text-[11px] leading-tight flex items-center gap-1.5" style={{ color: 'rgba(0,0,0,0.55)' }}>
+          <img src="/rockwell_logo.svg" alt="Rockwell" draggable={false} style={{ height: 18, width: 'auto', display: 'block' }} />
+          <div className="text-[11px] leading-tight flex items-center gap-1.5 mt-1" style={{ color: 'rgba(0,0,0,0.55)' }}>
             <span style={{ width: 6, height: 6, borderRadius: 99, background: status?.connected ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
             {statusLine}
           </div>
