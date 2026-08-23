@@ -195,6 +195,20 @@ export async function renameChat(token: string, id: string, title: string): Prom
   return chats;
 }
 
+const ARCHIVE_DIR = `${DIR}/_archive`;
+
+/** Move a chat into the archive folder and drop it from the active index. */
+export async function archiveChat(token: string, id: string): Promise<ChatMeta[]> {
+  const chat = await loadChat(token, id);
+  if (chat) {
+    try { await vaultWrite(`${ARCHIVE_DIR}/${id}.md`, wrapChat(chat), token, true); } catch { /* best effort */ }
+  }
+  try { await vaultDelete(chatPath(id), token); } catch { /* already gone */ }
+  const chats = (await listChats(token)).filter((c) => c.id !== id);
+  await writeIndex(token, chats);
+  return chats;
+}
+
 export async function deleteChat(token: string, id: string): Promise<ChatMeta[]> {
   try {
     await vaultDelete(chatPath(id), token);

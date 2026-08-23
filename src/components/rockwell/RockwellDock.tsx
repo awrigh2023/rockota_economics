@@ -19,7 +19,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   SendIcon, XIcon, Maximize2Icon, Minimize2Icon, MaximizeIcon, MinimizeIcon, SquarePenIcon, StopCircleIcon,
-  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, Trash2Icon, PencilIcon, CheckIcon,
+  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, ArchiveIcon, PencilIcon, CheckIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -30,7 +30,7 @@ import {
 import { isOwner, loadBoard, saveBoard, newId, Board, Task } from '../../lib/console';
 import { vaultSearch, API_URL } from '../../lib/vault-api';
 import {
-  listChats, loadChat, saveChat, renameChat, deleteChat,
+  listChats, loadChat, saveChat, renameChat, archiveChat as archiveChatStore,
   newChatId, autoTitle, ChatMeta, Chat,
 } from '../../lib/chatStore';
 
@@ -55,6 +55,9 @@ const PERSONA =
   'format replies in markdown.';
 
 type ChatMsg = { role: 'user' | 'assistant'; content: string; sources?: string[] };
+type ChatSession = { messages: ChatMsg[]; streaming: boolean };
+type ActiveTaskRef = { id: string; title: string; bucket: string };
+const MAX_CONCURRENT = 4; // cap on chats generating at the same time
 
 // The Rockwell mark — master tiled icon, with an inline orb onError fallback.
 function RockwellOrb({ size = 26, state = 'idle' }: { size?: number; state?: 'idle' | 'thinking' }) {
@@ -104,15 +107,14 @@ export default function RockwellDock() {
   const [fullscreen, setFullscreen] = useState<boolean>(() => localStorage.getItem('rw_fullscreen') === '1');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [streaming, setStreaming] = useState(false);
+  const [sessions, setSessions] = useState<Record<string, ChatSession>>({}); // per-chat state → concurrency
   const [status, setStatus] = useState<ModelStatus | null>(null); // null = checking
   const [source, setSourceState] = useState<ModelSource>(getSource());
   const [modelName, setModelName] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState(getModelUrl());
   // Chat history (owner only)
   const [chats, setChats] = useState<ChatMeta[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(() => localStorage.getItem('rw_active_chat') || null);
   const [showChats, setShowChats] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -121,14 +123,14 @@ export default function RockwellDock() {
   const [board, setBoard] = useState<Board | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskBucketId, setNewTaskBucketId] = useState('');
-  const [activeTask, setActiveTask] = useState<{ id: string; title: string; bucket: string } | null>(() => {
-    try { return JSON.parse(localStorage.getItem('rw_active_task') || 'null'); } catch { return null; }
+  const [taskByChat, setTaskByChat] = useState<Record<string, ActiveTaskRef | null>>(() => {
+    try { return JSON.parse(localStorage.getItem('rw_task_by_chat') || '{}'); } catch { return {}; }
   });
   // Vault grounding: search the vault each turn and feed matches to the model.
   const [ground, setGround] = useState<boolean>(() => localStorage.getItem('rw_vault_ctx') !== '0');
   const [grounding, setGrounding] = useState<string | null>(null);
   const allowWrites = true; // always on; writes are still gated by propose-before-write in the bridge.
-  const abortRef = useRef<AbortController | null>(null);
+  const abortRefs = useRef<Record<string, AbortController>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -144,15 +146,17 @@ export default function RockwellDock() {
     }
   }, [open, fullscreen]);
   useEffect(() => { localStorage.setItem('rw_vault_ctx', ground ? '1' : '0'); }, [ground]);
-  useEffect(() => { localStorage.setItem('rw_active_task', JSON.stringify(activeTask)); }, [activeTask]);
+  useEffect(() => { localStorage.setItem('rw_task_by_chat', JSON.stringify(taskByChat)); }, [taskByChat]);
+  useEffect(() => { if (activeId) localStorage.setItem('rw_active_chat', activeId); }, [activeId]);
 
   // (Re)load the console board whenever the Tasks tab is shown or a task is
   // focused — so buckets/tasks added elsewhere (e.g. the Console page) appear.
   useEffect(() => {
-    if (open && owner && token && (activeTask || (fullscreen && sidebarTab === 'tasks'))) {
+    const hasTask = !!(activeId && taskByChat[activeId]);
+    if (open && owner && token && (hasTask || (fullscreen && sidebarTab === 'tasks'))) {
       loadBoard(token).then(setBoard).catch(() => { /* keep existing */ });
     }
-  }, [open, owner, token, fullscreen, sidebarTab, activeTask]);
+  }, [open, owner, token, fullscreen, sidebarTab, activeId, taskByChat]);
 
   const check = useCallback(() => {
     setStatus(null);
@@ -178,6 +182,16 @@ export default function RockwellDock() {
     if (open && owner && token) listChats(token).then(setChats).catch(() => setChats([]));
   }, [open, owner, token]);
 
+  // Restore the active chat's messages on open (sessions aren't kept across reloads).
+  useEffect(() => {
+    if (open && activeId && token && !sessions[activeId]) {
+      loadChat(token, activeId)
+        .then((chat) => { if (chat) setSessions((prev) => ({ ...prev, [activeId]: { messages: chat.messages, streaming: false } })); })
+        .catch(() => { /* leave empty */ });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeId, token]);
+
   // Summon / dismiss with Cmd/Ctrl+K.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -192,7 +206,7 @@ export default function RockwellDock() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, open]);
+  }, [sessions, activeId, open]);
 
   // Auto-grow the input to fit what you've typed (up to a max), like Claude.
   useEffect(() => {
@@ -205,11 +219,18 @@ export default function RockwellDock() {
   if (!user) return null;
 
   const model = modelName;
+  const messages = (activeId && sessions[activeId]?.messages) || [];
+  const streaming = !!(activeId && sessions[activeId]?.streaming);
+  const activeTask: ActiveTaskRef | null = activeId ? (taskByChat[activeId] ?? null) : null;
+  const runningCount = Object.values(sessions).filter((s) => s.streaming).length;
+  const patchSession = (id: string, up: (s: ChatSession) => ChatSession) =>
+    setSessions((prev) => ({ ...prev, [id]: up(prev[id] || { messages: [], streaming: false }) }));
 
   function stop() {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setStreaming(false);
+    if (!activeId) return;
+    abortRefs.current[activeId]?.abort();
+    delete abortRefs.current[activeId];
+    patchSession(activeId, (s) => ({ ...s, streaming: false }));
   }
 
   function chooseModel(id: string) {
@@ -218,29 +239,29 @@ export default function RockwellDock() {
   }
 
   function newChat() {
-    if (streaming) stop();
-    setMessages([]);
-    setActiveId(null);
+    const id = newChatId();
+    setSessions((prev) => ({ ...prev, [id]: { messages: [], streaming: false } }));
+    setActiveId(id);
     setInput('');
     setShowChats(false);
   }
 
   async function openChat(id: string) {
     if (!token) return;
-    if (streaming) stop();
-    const chat = await loadChat(token, id);
-    if (chat) {
-      setMessages(chat.messages);
-      setActiveId(id);
-    }
+    setActiveId(id);
     setShowChats(false);
+    if (!sessions[id]) {
+      const chat = await loadChat(token, id);
+      patchSession(id, () => ({ messages: chat?.messages ?? [], streaming: false }));
+    }
   }
 
-  async function removeChat(id: string) {
+  async function archiveChat(id: string) {
     if (!token) return;
-    const next = await deleteChat(token, id);
+    const next = await archiveChatStore(token, id);
     setChats(next);
-    if (activeId === id) { setActiveId(null); setMessages([]); }
+    setSessions((prev) => { const c = { ...prev }; delete c[id]; return c; });
+    if (activeId === id) newChat();
   }
 
   async function commitRename(id: string) {
@@ -250,13 +271,12 @@ export default function RockwellDock() {
     if (title) setChats(await renameChat(token, id, title));
   }
 
-  async function persistTurn(finalMsgs: ChatMsg[]) {
+  async function persistTurn(chatId: string, finalMsgs: ChatMsg[]) {
     if (!owner || !token) return;
-    const id = activeId || newChatId();
-    const existing = chats.find((c) => c.id === id);
+    const existing = chats.find((c) => c.id === chatId);
     const now = new Date().toISOString();
     const chat: Chat = {
-      id,
+      id: chatId,
       title: existing?.title || autoTitle(finalMsgs),
       createdAt: existing?.createdAt || now,
       updatedAt: now,
@@ -264,7 +284,6 @@ export default function RockwellDock() {
       model: model || undefined,
       messages: finalMsgs,
     };
-    if (!activeId) setActiveId(id);
     try { setChats(await saveChat(token, chat)); } catch { /* offline — keep chatting */ }
   }
 
@@ -298,50 +317,58 @@ export default function RockwellDock() {
     try { await saveBoard(updated, token); } catch { /* keep local; retry later */ }
   }
 
-  function taskContext(): LocalMsg | null {
-    if (!activeTask) return null;
-    const full = board?.tasks.find((t) => t.id === activeTask.id);
+  function taskContextFor(at: ActiveTaskRef | null): LocalMsg | null {
+    if (!at) return null;
+    const full = board?.tasks.find((t) => t.id === at.id);
     const notes = full?.notes?.trim();
     return {
       role: 'system',
       content:
-        `The user is working on a task from their Rockota console: "${activeTask.title}" (bucket: ${activeTask.bucket}).` +
+        `The user is working on a task from their Rockota console: "${at.title}" (bucket: ${at.bucket}).` +
         (notes ? `\nTask notes:\n${notes}` : '') +
         '\nHelp drive this task to completion: propose next steps, pull in any needed context (use your vault tools if available), and keep the conversation focused on it.',
     };
   }
 
-  async function startTask(t: Task, bucketName: string) {
-    if (streaming) stop();
-    setMessages([]);
-    setActiveId(null);
+  function startTask(t: Task, bucketName: string) {
+    const id = newChatId();
+    const at: ActiveTaskRef = { id: t.id, title: t.title, bucket: bucketName };
+    setSessions((prev) => ({ ...prev, [id]: { messages: [], streaming: false } }));
+    setTaskByChat((prev) => ({ ...prev, [id]: at }));
+    setActiveId(id);
     setInput('');
     setShowChats(false);
-    setActiveTask({ id: t.id, title: t.title, bucket: bucketName });
     if (t.status !== 'doing') setTaskStatus(t.id, 'doing');
-    // Kick off with context so Rockwell opens with a plan.
-    if (status?.connected && model) send(`Let's work on this task: "${t.title}". Give me a short plan to complete it, then we'll go step by step.`);
-  }
-
-  async function completeTask() {
-    if (activeTask) {
-      await setTaskStatus(activeTask.id, 'done');
-      const title = activeTask.title;
-      setActiveTask(null);
-      setMessages((m) => [...m, { role: 'assistant', content: `✓ Marked **${title}** complete on your console.` }]);
+    // Kick off with context so Rockwell opens with a plan (new chat, so pass id + task).
+    if (status?.connected && model) {
+      send(`Let's work on this task: "${t.title}". Give me a short plan to complete it, then we'll go step by step.`, id, at);
     }
   }
 
-  async function send(overrideText?: string) {
+  async function completeTask() {
+    if (!activeId) return;
+    const at = taskByChat[activeId];
+    if (!at) return;
+    await setTaskStatus(at.id, 'done');
+    setTaskByChat((prev) => ({ ...prev, [activeId]: null }));
+    patchSession(activeId, (s) => ({ ...s, messages: [...s.messages, { role: 'assistant', content: `✓ Marked **${at.title}** complete on your console.` }] }));
+  }
+
+  async function send(overrideText?: string, targetId?: string, taskOverride?: ActiveTaskRef) {
+    const chatId = targetId ?? activeId;
     const text = (overrideText ?? input).trim();
-    if (!text || streaming || !status?.connected || !model) return;
-    setInput('');
-    const prior = messages;
+    if (!text || !chatId || !status?.connected || !model) return;
+    if (sessions[chatId]?.streaming) return; // this chat is already generating
+    if (runningCount >= MAX_CONCURRENT) {
+      patchSession(chatId, (s) => ({ ...s, messages: [...s.messages, { role: 'assistant', content: `⚠ Too many chats are generating at once (max ${MAX_CONCURRENT}). Let one finish first.` }] }));
+      return;
+    }
+    if (overrideText === undefined) setInput('');
+    const prior = sessions[chatId]?.messages ?? [];
     const history: LocalMsg[] = prior.map((m) => ({ role: m.role, content: m.content }));
-    setMessages((m) => [...m, { role: 'user', content: text }, { role: 'assistant', content: '' }]);
-    setStreaming(true);
+    patchSession(chatId, (s) => ({ messages: [...s.messages, { role: 'user', content: text }, { role: 'assistant', content: '' }], streaming: true }));
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortRefs.current[chatId] = controller;
 
     // Vault access takes one of two forms:
     //  • Claude path: hand the model real read-only tools (the bridge loads our
@@ -372,7 +399,7 @@ export default function RockwellDock() {
       setGrounding(null);
     }
 
-    const taskMsg = taskContext();
+    const taskMsg = taskContextFor(taskOverride ?? taskByChat[chatId] ?? null);
     const req: LocalMsg[] = [
       { role: 'system', content: PERSONA },
       ...(taskMsg ? [taskMsg] : []),
@@ -385,29 +412,29 @@ export default function RockwellDock() {
     try {
       for await (const tok of streamLocalChat(model, req, controller.signal, auth)) {
         acc += tok;
-        setMessages((m) => {
-          const c = [...m];
+        patchSession(chatId, (s) => {
+          const c = [...s.messages];
           c[c.length - 1] = { role: 'assistant', content: acc, sources };
-          return c;
+          return { ...s, messages: c };
         });
       }
     } catch (e) {
       if ((e as { name?: string })?.name !== 'AbortError') {
-        setMessages((m) => {
-          const c = [...m];
+        patchSession(chatId, (s) => {
+          const c = [...s.messages];
           if (c.length && c[c.length - 1].role === 'assistant' && !c[c.length - 1].content) {
             c[c.length - 1] = { role: 'assistant', content: '⚠ Lost contact with your model. Is the server still running?' };
           }
-          return c;
+          return { ...s, messages: c };
         });
       }
     } finally {
-      setStreaming(false);
-      abortRef.current = null;
+      patchSession(chatId, (s) => ({ ...s, streaming: false }));
+      delete abortRefs.current[chatId];
       setGrounding(null);
       if (acc.trim()) {
         const finalMsgs: ChatMsg[] = [...prior, { role: 'user', content: text }, { role: 'assistant', content: acc, sources }];
-        persistTurn(finalMsgs);
+        persistTurn(chatId, finalMsgs);
       }
     }
   }
@@ -476,18 +503,23 @@ export default function RockwellDock() {
               ) : (
                 <>
                   <button onClick={() => openChat(c.id)} className="flex-1 min-w-0 text-left" title={c.title}>
-                    <span className="block truncate text-[13px]" style={{ color: '#1f2a44' }}>{c.title}</span>
+                    <span className="flex items-center gap-1.5">
+                      {sessions[c.id]?.streaming && (
+                        <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: 9999, background: GOLD, flexShrink: 0 }} />
+                      )}
+                      <span className="truncate text-[13px]" style={{ color: '#1f2a44' }}>{c.title}</span>
+                    </span>
                     <span className="block text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>
-                      {c.updatedAt ? c.updatedAt.slice(0, 10) : ''}{c.source === 'claude' ? ' · Claude' : c.source === 'local' ? ' · Local' : ''}
+                      {sessions[c.id]?.streaming ? 'working…' : (c.updatedAt ? c.updatedAt.slice(0, 10) : '')}{c.source === 'claude' ? ' · Claude' : c.source === 'local' ? ' · Local' : ''}
                     </span>
                   </button>
                   <button onClick={() => { setRenamingId(c.id); setRenameDraft(c.title); }} title="Rename"
                     className="p-1 rounded hover:bg-black/5 opacity-0 group-hover:opacity-100" style={{ color: 'rgba(0,0,0,0.6)' }}>
                     <PencilIcon size={13} />
                   </button>
-                  <button onClick={() => removeChat(c.id)} title="Delete"
+                  <button onClick={() => archiveChat(c.id)} title="Archive"
                     className="p-1 rounded hover:bg-black/5 opacity-0 group-hover:opacity-100" style={{ color: 'rgba(0,0,0,0.6)' }}>
-                    <Trash2Icon size={13} />
+                    <ArchiveIcon size={13} />
                   </button>
                 </>
               )}
@@ -677,7 +709,7 @@ export default function RockwellDock() {
           <button onClick={completeTask} className="px-2 py-0.5 rounded-md text-[11px] font-medium inline-flex items-center gap-1" style={{ background: '#4ade80', color: NAVY }}>
             <CheckIcon size={12} /> Complete
           </button>
-          <button onClick={() => setActiveTask(null)} title="Unfocus task" className="p-1 rounded hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
+          <button onClick={() => { if (activeId) setTaskByChat((prev) => ({ ...prev, [activeId]: null })); }} title="Unfocus task" className="p-1 rounded hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
             <XIcon size={13} />
           </button>
         </div>
@@ -747,7 +779,7 @@ export default function RockwellDock() {
             )}
             {status?.connected && messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-4" style={{ color: 'rgba(0,0,0,0.55)' }}>
-                <RockwellOrb size={40} />
+                <img src="/rockwell_logo.svg" alt="Rockwell" style={{ width: 'min(220px, 75%)', height: 'auto' }} draggable={false} />
                 <p className="mt-3 text-sm" style={{ color: 'rgba(0,0,0,0.85)' }}>Running on {source === 'claude' ? 'Claude' : 'your model'} — {model ? prettyModel(source, model) : '—'}.</p>
                 <p className="mt-1 text-[12px]">Ask me anything.</p>
               </div>
