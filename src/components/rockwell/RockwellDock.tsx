@@ -156,12 +156,12 @@ export default function RockwellDock() {
   useEffect(() => { localStorage.setItem('rw_fullscreen', fullscreen ? '1' : '0'); }, [fullscreen]);
   // Lock background page scroll while Rockwell is full-screen.
   useEffect(() => {
-    if (open && fullscreen) {
+    if (open && (fullscreen || isNarrow)) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => { document.body.style.overflow = prev; };
     }
-  }, [open, fullscreen]);
+  }, [open, fullscreen, isNarrow]);
   useEffect(() => { localStorage.setItem('rw_vault_ctx', ground ? '1' : '0'); }, [ground]);
   useEffect(() => { localStorage.setItem('rw_task_by_chat', JSON.stringify(taskByChat)); }, [taskByChat]);
   useEffect(() => { localStorage.setItem('rw_goal_by_chat', JSON.stringify(goalByChat)); }, [goalByChat]);
@@ -171,7 +171,7 @@ export default function RockwellDock() {
   // goal is focused — so items added elsewhere (e.g. the Console page) appear.
   useEffect(() => {
     const hasFocus = !!(activeId && (taskByChat[activeId] || goalByChat[activeId]));
-    const tabWantsBoard = fullscreen && (sidebarTab === 'tasks' || sidebarTab === 'goals');
+    const tabWantsBoard = sidebarTab === 'tasks' || sidebarTab === 'goals';
     if (open && owner && token && (hasFocus || tabWantsBoard)) {
       loadBoard(token).then(setBoard).catch(() => { /* keep existing */ });
     }
@@ -521,12 +521,15 @@ export default function RockwellDock() {
   const showSidebar = owner && useSidebar && sidebarOpen;
   const posStyle = fullscreen
     ? { top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 }
-    : {
-        bottom: 20,
-        right: 20,
-        width: expanded ? 'min(620px, calc(100vw - 40px))' : 'min(440px, calc(100vw - 40px))',
-        height: expanded ? 'min(88vh, 940px)' : 'min(82vh, 720px)',
-      };
+    : isNarrow
+      // Small screen: near-full so the whole chat + responses stay in frame.
+      ? { top: 8, left: 8, right: 8, bottom: 8 }
+      : {
+          bottom: 20,
+          right: 20,
+          width: expanded ? 'min(620px, calc(100vw - 40px))' : 'min(440px, calc(100vw - 40px))',
+          height: expanded ? 'min(88vh, 940px)' : 'min(82vh, 720px)',
+        };
 
   const statusLine = status === null
     ? 'Looking for your model…'
@@ -696,6 +699,32 @@ export default function RockwellDock() {
     </>
   );
 
+  // Shared Chats/Tasks/Goals panel — used as the full-screen left rail AND as
+  // the overlay when the rail is collapsed (small screen or non-full-screen).
+  const sidebarBody = (
+    <>
+      <div className="flex items-center gap-1 px-2.5 pt-3 pb-2">
+        {(['chats', 'tasks', 'goals'] as const).map((tab) => (
+          <button key={tab} onClick={() => setSidebarTab(tab)}
+            className="flex-1 rounded-md py-1 text-[11px] font-medium capitalize"
+            style={sidebarTab === tab
+              ? { background: GOLD, color: NAVY }
+              : { background: 'transparent', color: 'rgba(0,0,0,0.6)', border: `1px solid ${GOLD}33` }}>
+            {tab}
+          </button>
+        ))}
+        {sidebarTab !== 'chats' && (
+          <button onClick={refreshBoard} title="Refresh from console" className="p-1 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
+            <RefreshCwIcon size={13} />
+          </button>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto px-2.5 pb-3">
+        {sidebarTab === 'chats' ? chatListInner : sidebarTab === 'tasks' ? taskListInner : goalListInner}
+      </div>
+    </>
+  );
+
   return (
     <div
       className="fixed z-[60] flex flex-col rounded-2xl shadow-2xl overflow-hidden"
@@ -793,25 +822,7 @@ export default function RockwellDock() {
       <div className="flex-1 flex min-h-0">
       {showSidebar && (
         <aside className="w-60 shrink-0 flex flex-col overflow-hidden" style={{ borderRight: `1px solid ${GOLD}22`, background: PANEL }}>
-          <div className="flex items-center gap-1 px-2.5 pt-3 pb-2">
-            {(['chats', 'tasks', 'goals'] as const).map((tab) => (
-              <button key={tab} onClick={() => setSidebarTab(tab)}
-                className="flex-1 rounded-md py-1 text-[11px] font-medium capitalize"
-                style={sidebarTab === tab
-                  ? { background: GOLD, color: NAVY }
-                  : { background: 'transparent', color: 'rgba(0,0,0,0.6)', border: `1px solid ${GOLD}33` }}>
-                {tab}
-              </button>
-            ))}
-            {sidebarTab !== 'chats' && (
-              <button onClick={refreshBoard} title="Refresh from console" className="p-1 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.6)' }}>
-                <RefreshCwIcon size={13} />
-              </button>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto px-2.5 pb-3">
-            {sidebarTab === 'chats' ? chatListInner : sidebarTab === 'tasks' ? taskListInner : goalListInner}
-          </div>
+          {sidebarBody}
         </aside>
       )}
       <div className="flex-1 flex flex-col min-h-0">
@@ -843,8 +854,8 @@ export default function RockwellDock() {
         </div>
       )}
       {owner && !useSidebar && showChats ? (
-        <div className="flex-1 overflow-y-auto px-3 py-3" style={{ color: 'rgba(0,0,0,0.85)' }}>
-          {chatListInner}
+        <div className="flex-1 flex flex-col min-h-0" style={{ color: 'rgba(0,0,0,0.85)' }}>
+          {sidebarBody}
         </div>
       ) : status !== null && !status.connected ? (
         /* Not connected → setup panel */
