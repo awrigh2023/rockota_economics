@@ -52,8 +52,11 @@ const PERSONA =
   'cite the note path. If a question is about the user\'s notes but no vault notes ' +
   'were provided, say you did not find a matching note — do NOT claim you lack file ' +
   'access. You do positive economics: describe what the data shows and why, ' +
-  'mechanistically, without value judgments or recommendations. Be concise and ' +
-  'format replies in markdown.';
+  'mechanistically, without value judgments or recommendations. ' +
+  'BE BRIEF: lead with the answer in the first sentence, then only the essential detail. ' +
+  'Prefer a few tight bullets over long paragraphs; skip preamble, restating the question, ' +
+  'and summaries of what you just said. Only go long if the user explicitly asks for depth. ' +
+  'Format replies in markdown.';
 
 type ChatMsg = { role: 'user' | 'assistant'; content: string; sources?: string[] };
 type ChatSession = { messages: ChatMsg[]; streaming: boolean };
@@ -753,12 +756,16 @@ export default function RockwellDock() {
         <button onClick={newChat} title="New chat" className="p-1.5 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.7)' }}>
           <SquarePenIcon size={16} />
         </button>
-        <button onClick={() => { setExpanded((e) => !e); setFullscreen(false); }} title={expanded ? 'Shrink' : 'Expand'} className="p-1.5 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.7)' }}>
-          {expanded ? <Minimize2Icon size={16} /> : <Maximize2Icon size={16} />}
-        </button>
-        <button onClick={() => setFullscreen((f) => !f)} title={fullscreen ? 'Exit full screen' : 'Full screen'} className="p-1.5 rounded-md hover:bg-black/5" style={{ color: fullscreen ? GOLD : 'rgba(0,0,0,0.7)' }}>
-          {fullscreen ? <MinimizeIcon size={16} /> : <MaximizeIcon size={16} />}
-        </button>
+        {!isNarrow && (
+          <>
+            <button onClick={() => { setExpanded((e) => !e); setFullscreen(false); }} title={expanded ? 'Shrink' : 'Expand'} className="p-1.5 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.7)' }}>
+              {expanded ? <Minimize2Icon size={16} /> : <Maximize2Icon size={16} />}
+            </button>
+            <button onClick={() => setFullscreen((f) => !f)} title={fullscreen ? 'Exit full screen' : 'Full screen'} className="p-1.5 rounded-md hover:bg-black/5" style={{ color: fullscreen ? GOLD : 'rgba(0,0,0,0.7)' }}>
+              {fullscreen ? <MinimizeIcon size={16} /> : <MaximizeIcon size={16} />}
+            </button>
+          </>
+        )}
         <button onClick={() => setOpen(false)} title="Minimize" className="p-1.5 rounded-md hover:bg-black/5" style={{ color: 'rgba(0,0,0,0.7)' }}>
           <XIcon size={16} />
         </button>
