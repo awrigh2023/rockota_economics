@@ -108,6 +108,7 @@ export default function RockwellDock() {
   const [expanded, setExpanded] = useState<boolean>(() => localStorage.getItem('rw_expanded') === '1');
   const [fullscreen, setFullscreen] = useState<boolean>(() => localStorage.getItem('rw_fullscreen') === '1');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [isNarrow, setIsNarrow] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 640);
   const [input, setInput] = useState('');
   const [sessions, setSessions] = useState<Record<string, ChatSession>>({}); // per-chat state → concurrency
   const [status, setStatus] = useState<ModelStatus | null>(null); // null = checking
@@ -140,6 +141,15 @@ export default function RockwellDock() {
   const abortRefs = useRef<Record<string, AbortController>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Track a narrow viewport so we collapse the sidebar and keep chat visible.
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const on = () => setIsNarrow(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
 
   useEffect(() => { localStorage.setItem('rw_open', open ? '1' : '0'); }, [open]);
   useEffect(() => { localStorage.setItem('rw_expanded', expanded ? '1' : '0'); }, [expanded]);
@@ -505,7 +515,10 @@ export default function RockwellDock() {
   }
 
   // Position/size: bottom-right at two sizes, or full-screen with a small inset.
-  const showSidebar = owner && fullscreen && sidebarOpen;
+  // Use the left rail only in full-screen on a wide viewport; otherwise the
+  // chat list lives in an overlay so the chat window stays the priority.
+  const useSidebar = fullscreen && !isNarrow;
+  const showSidebar = owner && useSidebar && sidebarOpen;
   const posStyle = fullscreen
     ? { top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 }
     : {
@@ -698,9 +711,9 @@ export default function RockwellDock() {
           </div>
         </div>
         {owner && (
-          <button onClick={() => (fullscreen ? setSidebarOpen((v) => !v) : setShowChats((v) => !v))}
+          <button onClick={() => (useSidebar ? setSidebarOpen((v) => !v) : setShowChats((v) => !v))}
             title="Chat history" className="p-1.5 rounded-md hover:bg-black/5"
-            style={{ color: (fullscreen ? sidebarOpen : showChats) ? GOLD : 'rgba(0,0,0,0.7)' }}>
+            style={{ color: (useSidebar ? sidebarOpen : showChats) ? GOLD : 'rgba(0,0,0,0.7)' }}>
             <MessagesSquareIcon size={16} />
           </button>
         )}
@@ -719,7 +732,7 @@ export default function RockwellDock() {
       </div>
 
       {/* Model-source toggle + model dropdown */}
-      <div className="flex items-center gap-1.5 px-3 py-2" style={{ background: PANEL, borderBottom: `1px solid ${GOLD}14` }}>
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2" style={{ background: PANEL, borderBottom: `1px solid ${GOLD}14` }}>
         <span className="text-[10px] mr-0.5" style={{ color: 'rgba(0,0,0,0.4)' }}>Model</span>
         {(['local', 'claude'] as ModelSource[]).map((s) => (
           <button
@@ -828,7 +841,7 @@ export default function RockwellDock() {
           </div>
         </div>
       )}
-      {owner && !fullscreen && showChats ? (
+      {owner && !useSidebar && showChats ? (
         <div className="flex-1 overflow-y-auto px-3 py-3" style={{ color: 'rgba(0,0,0,0.85)' }}>
           {chatListInner}
         </div>
