@@ -101,7 +101,7 @@ export async function* streamLocalChat(
   model: string,
   messages: LocalMsg[],
   signal?: AbortSignal,
-  auth?: { token: string; apiBase: string },
+  auth?: { token: string; apiBase: string; allowWrites?: boolean },
 ): AsyncGenerator<string> {
   const url = getModelUrl();
   const res = await fetch(`${url}/v1/chat/completions`, {
@@ -111,7 +111,7 @@ export async function* streamLocalChat(
       model,
       messages,
       stream: true,
-      ...(auth ? { token: auth.token, api_base: auth.apiBase } : {}),
+      ...(auth ? { token: auth.token, api_base: auth.apiBase, allow_writes: !!auth.allowWrites } : {}),
     }),
     signal,
   });
