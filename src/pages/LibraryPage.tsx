@@ -1,179 +1,107 @@
-import React from 'react';
-import { BookOpenIcon, ExternalLinkIcon, UserIcon } from 'lucide-react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { BookOpenIcon, PlayIcon, PresentationIcon, UserIcon, XIcon } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { isOwner } from '../lib/console';
+import { DECKS, DeckEntry } from '../decks/registry';
+
 const LibraryPage = () => {
-  return <div className="w-full min-h-screen bg-gray-50 px-4 py-8">
+  const { user } = useAuth();
+  const owner = isOwner(user);
+  const [playing, setPlaying] = useState<DeckEntry | null>(null);
+
+  // Drafts are visible only to the owner.
+  const entries = DECKS.filter((d) => owner || !d.draft);
+
+  return (
+    <div className="w-full min-h-screen bg-gray-50 px-4 py-10">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <div className="bg-[#243975]/10 p-6 rounded-full inline-flex items-center justify-center mb-6">
-            <BookOpenIcon size={48} className="text-[#243975]" />
+            <BookOpenIcon size={44} className="text-[#243975]" />
           </div>
-          <h1 className="text-4xl font-bold text-[#243975] mb-4">
-            Economic Library
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            Foundational texts and alternative economic frameworks for a sustainable future.
+          <h1 className="text-4xl font-bold text-[#243975] mb-3">The Empirics</h1>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Book takeaways, told in data. Open a deck to present it, or watch a published review.
           </p>
         </div>
 
-        {/* Featured Books Section */}
-        <div className="grid md:grid-cols-1 gap-8 mb-12">
-          {/* Doughnut Economics */}
-          <div className="bg-white rounded-lg shadow-lg border border-[#d7c770]/30 overflow-hidden">
-            <div className="md:flex">
-              <div className="md:w-1/3 bg-gradient-to-br from-[#008080]/10 to-[#243975]/10 p-8 flex flex-col items-center justify-center">
-                <img
-                  src="/doughnut_economics.jpg"
-                  alt="Doughnut Economics Book Cover"
-                  className="w-full h-3/4 object-cover rounded-md shadow-md mb-4"
-                />
-                <div className="text-sm text-gray-600 font-medium">Book Cover</div>
-              </div>
-              <div className="md:w-2/3 p-8 flex flex-col">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h2 className="text-3xl font-bold text-[#243975] mb-2">
-                      Doughnut Economics
-                    </h2>
-                    <div className="flex items-center text-gray-600 mb-4">
-                      <UserIcon size={16} className="mr-2" />
-                      <span className="text-lg">Kate Raworth</span>
-                    </div>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {entries.map((d) => {
+            const isDeck = !!d.deck;
+            const cardClass =
+              'text-left bg-white rounded-lg shadow-sm border border-gray-100 p-6 flex flex-col hover:shadow-md hover:border-[#008080]/40 transition';
+            const inner = (
+              <>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-3 rounded-lg" style={{ background: `${d.accent}1a` }}>
+                    {isDeck ? (
+                      <PresentationIcon size={22} style={{ color: d.accent }} />
+                    ) : (
+                      <PlayIcon size={22} style={{ color: d.accent }} />
+                    )}
                   </div>
-                  <div className="bg-[#008080]/10 px-3 py-1 rounded-full">
-                    <span className="text-[#008080] font-medium text-sm">Alternative Economics</span>
+                  <div className="flex items-center gap-2">
+                    {d.draft && (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                        Draft
+                      </span>
+                    )}
+                    <span className="text-[11px] uppercase tracking-wide text-gray-400 mt-0.5">
+                      {isDeck ? 'Slides' : 'Video'}
+                    </span>
                   </div>
                 </div>
-
-                <div className="mb-6">
-                  <iframe
-                    width="100%"
-                    height="315"
-                    src="https://www.youtube.com/embed/bmkVjGGisa0"
-                    title="Doughnut Economics Video Review"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="rounded-lg shadow-md mb-4"
-                  ></iframe>
-                  <p className="text-gray-700 leading-relaxed">
-                    A brief video review of Kate Raworth's Doughnut Economics, including her "doughnut" graph of the economy indicating where we must aim to be in a "safe and just operating space".
-                  </p>
-                </div>
-
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-[#243975] mb-3">Key Concepts:</h3>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                      <span className="text-gray-700">Social Foundation</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                      <span className="text-gray-700">Ecological Ceiling</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                      <span className="text-gray-700">Regenerative Design</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                      <span className="text-gray-700">Distributive Design</span>
-                    </div>
-                  </div>
-                </div>
-
-
-              </div>
-            </div>
-          </div>
-
-          {/* The Shortest History of Economics */}
-          <div className="bg-white rounded-lg shadow-lg border border-[#d7c770]/30 overflow-hidden">
-            <div className="md:flex">
-                <div className="md:w-1/3 bg-gradient-to-br from-[#008080]/10 to-[#243975]/10 p-8 flex flex-col items-center justify-center">
-                <img
-                    src="/Image (20).jpg"
-                    alt="The Shortest History of Economics Book Cover"
-                    className="w-full h-auto object-cover rounded-md shadow-md mb-4"
-                />
-                <div className="text-sm text-gray-600 font-medium">Book Cover</div>
-                </div>
-                <div className="md:w-2/3 p-8 flex flex-col">
-                <div className="flex items-start justify-between mb-4">
-                    <div>
-                    <h2 className="text-3xl font-bold text-[#243975] mb-2">
-                        The Shortest History of Economics
-                    </h2>
-                    <div className="flex items-center text-gray-600 mb-4">
-                        <UserIcon size={16} className="mr-2" />
-                        <span className="text-lg">Andrew Leigh</span>
-                    </div>
-                    </div>
-                    <div className="bg-[#008080]/10 px-3 py-1 rounded-full">
-                    <span className="text-[#008080] font-medium text-sm">Economic History</span>
-                    </div>
-                </div>
-
-                <div className="mb-6">
-                    <iframe
-                    width="100%"
-                    height="315"
-                    src="https://www.youtube.com/embed/2y9JrWJZdnE"
-                    title="The Shortest History of Economics Video Review"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="rounded-lg shadow-md mb-4"
-                    ></iframe>
-                    <p className="text-gray-700 leading-relaxed">
-                    A brief recap of the main events in Andrew Leigh's history of economic development from the early world to the COVID pandemic.
-                    </p>
-                </div>
-
-                <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-[#243975] mb-3">Key Concepts:</h3>
-                    <div className="grid md:grid-cols-2 gap-3">
-                    <div className="flex items-center">
-                        <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                        <span className="text-gray-700">Geographic Formation</span>
-                    </div>
-                    <div className="flex items-center">
-                        <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                        <span className="text-gray-700">Trade Barriers</span>
-                    </div>
-                    <div className="flex items-center">
-                        <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                        <span className="text-gray-700">Monetary Policy</span>
-                    </div>
-                    <div className="flex items-center">
-                        <div className="w-2 h-2 bg-[#008080] rounded-full mr-3"></div>
-                        <span className="text-gray-700">Future of Capitalism</span>
-                    </div>
-                    </div>
-                </div>
-                </div>
-            </div>
-          </div>
-
+                <h3 className="text-lg font-semibold text-gray-900 leading-snug">{d.title}</h3>
+                <p className="flex items-center text-sm text-gray-500 mt-1">
+                  <UserIcon size={13} className="mr-1.5" /> {d.author}
+                </p>
+                <p className="text-sm text-gray-600 mt-3 flex-grow">{d.tagline}</p>
+                <span className="mt-5 text-sm font-medium" style={{ color: d.accent }}>
+                  {isDeck ? 'Present slides →' : 'Watch review →'}
+                </span>
+              </>
+            );
+            return isDeck ? (
+              <Link key={d.id} to={`/library/${d.id}`} className={cardClass}>
+                {inner}
+              </Link>
+            ) : (
+              <button key={d.id} type="button" onClick={() => setPlaying(d)} className={cardClass}>
+                {inner}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Coming Soon Section */}
-        <div className="text-center">
-          <div className="p-6 bg-white rounded-lg shadow-lg border border-[#d7c770]/30 max-w-2xl mx-auto">
-            <h2 className="text-2xl font-semibold text-[#008080] mb-4">
-              More Books Coming Soon
-            </h2>
-            <p className="text-gray-600 mb-6">
-              We're expanding our library with more foundational texts on alternative economics, 
-              ecological economics, and sustainable development frameworks.
-            </p>
-            <div className="inline-flex items-center px-4 py-2 border border-[#d7c770] rounded-md text-[#243975] bg-[#d7c770]/10">
-              <span className="mr-2">●</span>
-              <span>In Development</span>
-            </div>
-          </div>
-        </div>
+        {entries.length === 0 && (
+          <p className="text-center text-gray-400 mt-10">No entries yet.</p>
+        )}
       </div>
-    </div>;
+
+      {/* Video modal for published YouTube reviews */}
+      {playing?.youtubeId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => setPlaying(null)}>
+          <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2 text-white">
+              <span className="font-medium">{playing.title}</span>
+              <button onClick={() => setPlaying(null)} className="p-1 hover:text-gray-300"><XIcon size={22} /></button>
+            </div>
+            <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+              <iframe
+                className="absolute inset-0 w-full h-full rounded-lg"
+                src={`https://www.youtube.com/embed/${playing.youtubeId}?autoplay=1`}
+                title={playing.title}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
+
 export default LibraryPage;

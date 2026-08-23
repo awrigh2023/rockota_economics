@@ -24,6 +24,7 @@ export const BOARD_PATH = 'notes/users/andrew/Rockota/_console/board.md';
 
 export type Status = 'todo' | 'doing' | 'done';
 export type Priority = 'none' | 'low' | 'med' | 'high';
+export type Horizon = 'week' | 'quarter' | 'year';
 
 export const STATUS_LABEL: Record<Status, string> = {
   todo: 'Not started',
@@ -36,6 +37,13 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   med: 'Medium',
   high: 'High',
 };
+export const HORIZON_LABEL: Record<Horizon, string> = {
+  week: 'This Week',
+  quarter: 'This Quarter',
+  year: 'This Year',
+};
+// Display order for the goals panel.
+export const HORIZONS: Horizon[] = ['week', 'quarter', 'year'];
 
 export interface Bucket {
   id: string;
@@ -55,10 +63,22 @@ export interface Task {
   updatedAt: string;
 }
 
+export interface Goal {
+  id: string;
+  title: string;
+  horizon: Horizon;
+  progress: number; // 0-100, manually set
+  target: string | null; // YYYY-MM-DD target date, optional
+  notes: string; // long-form note (markdown); shown in the goal detail view
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Board {
   version: number;
   buckets: Bucket[];
   tasks: Task[];
+  goals: Goal[];
 }
 
 export const SEED_BUCKETS = ['Rockota', 'Libertas', 'Metro Denver EDC', 'Personal'];
@@ -69,9 +89,24 @@ export function newId(prefix: string): string {
 
 export function defaultBoard(): Board {
   return {
-    version: 1,
+    version: 2,
     buckets: SEED_BUCKETS.map((name) => ({ id: newId('b'), name })),
     tasks: [],
+    goals: [],
+  };
+}
+
+export function newGoal(horizon: Horizon, title: string): Goal {
+  const now = new Date().toISOString();
+  return {
+    id: newId('g'),
+    title,
+    horizon,
+    progress: 0,
+    target: null,
+    notes: '',
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
@@ -79,6 +114,29 @@ export function defaultBoard(): Board {
 
 const STATUSES: Status[] = ['todo', 'doing', 'done'];
 const PRIORITIES: Priority[] = ['none', 'low', 'med', 'high'];
+const HORIZON_VALUES: Horizon[] = ['week', 'quarter', 'year'];
+
+function coerceGoal(raw: unknown): Goal | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const title = typeof r.title === 'string' ? r.title : '';
+  if (!title.trim()) return null;
+  const now = new Date().toISOString();
+  const horizon = HORIZON_VALUES.includes(r.horizon as Horizon) ? (r.horizon as Horizon) : 'week';
+  let progress = typeof r.progress === 'number' ? r.progress : 0;
+  if (!Number.isFinite(progress)) progress = 0;
+  progress = Math.max(0, Math.min(100, Math.round(progress)));
+  return {
+    id: typeof r.id === 'string' ? r.id : newId('g'),
+    title,
+    horizon,
+    progress,
+    target: typeof r.target === 'string' && r.target ? r.target : null,
+    notes: typeof r.notes === 'string' ? r.notes : '',
+    createdAt: typeof r.createdAt === 'string' ? r.createdAt : now,
+    updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : now,
+  };
+}
 
 function coerceTask(raw: unknown, fallbackBucket: string): Task | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -131,7 +189,11 @@ export function parseBoard(md: string): Board | null {
     .map((t) => coerceTask(t, fallback))
     .filter((t): t is Task => t !== null)
     .map((t) => (bucketIds.has(t.bucketId) ? t : { ...t, bucketId: fallback }));
-  return { version: 1, buckets, tasks };
+  const rawGoals = Array.isArray(d.goals) ? d.goals : [];
+  const goals: Goal[] = rawGoals
+    .map((g) => coerceGoal(g))
+    .filter((g): g is Goal => g !== null);
+  return { version: 2, buckets, tasks, goals };
 }
 
 /** Render a Board back to board.md markdown (json block is canonical). */
@@ -143,6 +205,16 @@ export function serializeBoard(board: Board): string {
       const open = board.tasks.filter((t) => t.bucketId === b.id && t.status !== 'done').length;
       return `- **${b.name}** — ${open} open`;
     })
+    .join('\n');
+  const goals = board.goals ?? [];
+  const goalLines = HORIZONS
+    .map((h) => {
+      const inH = goals.filter((g) => g.horizon === h);
+      if (inH.length === 0) return null;
+      const avg = Math.round(inH.reduce((s, g) => s + g.progress, 0) / inH.length);
+      return `- **${HORIZON_LABEL[h]}** — ${inH.length} goal${inH.length === 1 ? '' : 's'}, ${avg}% avg`;
+    })
+    .filter((l): l is string => l !== null)
     .join('\n');
   return `---
 type: console-board
@@ -156,7 +228,13 @@ updated: ${today}
 > written by the Rockwell Console in the Rockota app. Hand-editing is fine as
 > long as the JSON stays valid.
 
+## Buckets
+
 ${counts || '- (no buckets yet)'}
+
+## Goals
+
+${goalLines || '- (no goals yet)'}
 
 \`\`\`json
 ${json}

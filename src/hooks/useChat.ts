@@ -67,7 +67,7 @@ function extractDocumentBlocks(text: string): {
 
 // ── Hook ──────────────────────────────────────────────────────────────────
 
-export function useChat(token: string | null) {
+export function useChat(token: string | null, allowWrites = false) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [documents, setDocuments] = useState<DocumentBlocks>({ resumeText: null, coverLetterText: null });
@@ -104,7 +104,7 @@ export function useChat(token: string | null) {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ history, input: trimmed }),
+          body: JSON.stringify({ history, input: trimmed, allow_writes: allowWrites }),
           signal: controller.signal,
         });
 
@@ -162,7 +162,7 @@ export function useChat(token: string | null) {
         abortRef.current = null;
       }
     },
-    [token],
+    [token, allowWrites],
   );
 
   const clearMessages = useCallback(() => {

@@ -11,6 +11,7 @@ import UtilsPage from './pages/UtilsPage';
 import UtilDetailPage from './pages/UtilDetailPage';
 import RockwellPage from './pages/RockwellPage';
 import ConsolePage from './pages/ConsolePage';
+import DeckPage from './pages/DeckPage';
 import { isOwner } from './lib/console';
 
 // Gates the Rockwell Console to the owner account only.
@@ -32,6 +33,7 @@ export function AppRouter() {
 
             <Route path="utils" element={<UtilsPage />} />
             <Route path="library" element={<LibraryPage />} />
+            <Route path="library/:deckId" element={<DeckPage />} />
             <Route path="login" element={<LoginPage />} />
             {/* Rockwell workspace — public graph + read-only; full chat requires auth */}
             <Route path="rockwell" element={<RockwellPage />} />

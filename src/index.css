@@ -4,8 +4,155 @@
 @import 'tailwindcss/utilities';
 /* DO NOT DELETE THESE TAILWIND IMPORTS, OTHERWISE THE STYLING WILL NOT RENDER AT ALL */
 
+/* Retro Mac console fonts — @import must precede all rules below (CSS spec) */
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen:wght@400;700&display=swap');
+
 /* ── Rockwell workspace custom scrollbar (dark panels only) ─────────────── */
 .rw-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
 .rw-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .rw-scrollbar::-webkit-scrollbar-thumb { background: #243975; border-radius: 2px; }
 .rw-scrollbar::-webkit-scrollbar-thumb:hover { background: #b8a850; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Rockwell Console — 80s retro Apple (early Macintosh) theme, light mode.
+   Uses Rockota brand: navy #243975, teal #008080, soft sage accent.
+   Chunky black chrome, pinstripe title bars, beveled buttons, hard shadows.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --mac-ink:    #1a1a1a;   /* the near-black chrome outline */
+  --mac-navy:   #243975;
+  --mac-sage:   #cbdcbf;   /* soft, muted green accent (very subtle) */
+  --mac-teal:   #008080;
+  --mac-paper:  #edf0ea;   /* near-white desktop, whisper of cool green */
+  --mac-panel:  #f9fbf7;   /* near-white window body */
+}
+
+/* Desktop backdrop — subtle dithered warm gray, unmistakably "System" */
+.mac-desktop {
+  background-color: var(--mac-paper);
+  background-image:
+    linear-gradient(45deg, rgba(36,57,117,0.05) 25%, transparent 25%, transparent 75%, rgba(36,57,117,0.05) 75%),
+    linear-gradient(45deg, rgba(36,57,117,0.05) 25%, transparent 25%, transparent 75%, rgba(36,57,117,0.05) 75%);
+  background-size: 6px 6px;
+  background-position: 0 0, 3px 3px;
+}
+
+.font-pixel  { font-family: 'Silkscreen', system-ui, sans-serif; }
+.font-crt    { font-family: 'VT323', ui-monospace, monospace; }
+
+/* A classic Mac window: hard black border + offset drop shadow, no blur */
+.mac-window {
+  background: var(--mac-panel);
+  border: 2px solid var(--mac-ink);
+  border-radius: 6px;
+  box-shadow: 4px 4px 0 0 rgba(26,26,26,0.85);
+}
+
+/* Pinstripe title bar (the six horizontal lines of System 6/7) */
+.mac-titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 2px solid var(--mac-ink);
+  border-radius: 4px 4px 0 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--mac-navy), var(--mac-navy) 1px,
+    transparent 1px, transparent 3px
+  );
+}
+.mac-titlebar--sage  { background-image: repeating-linear-gradient(to bottom, #6f8a5f, #6f8a5f 1px, transparent 1px, transparent 3px); }
+.mac-titlebar--teal  { background-image: repeating-linear-gradient(to bottom, var(--mac-teal), var(--mac-teal) 1px, transparent 1px, transparent 3px); }
+
+/* Close box — the little square at the left of a Mac title bar */
+.mac-closebox {
+  width: 13px; height: 13px;
+  flex: none;
+  background: #fff;
+  border: 1.5px solid var(--mac-ink);
+  border-radius: 2px;
+}
+
+/* Title chip: solid plate so the label reads over the pinstripes */
+.mac-title {
+  background: var(--mac-panel);
+  border: 1.5px solid var(--mac-ink);
+  border-radius: 3px;
+  padding: 1px 8px;
+  font-family: 'Silkscreen', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--mac-ink);
+  white-space: nowrap;
+}
+
+/* Beveled raised button */
+.mac-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 2px solid var(--mac-ink);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-weight: 600;
+  color: var(--mac-ink);
+  box-shadow: 2px 2px 0 0 rgba(26,26,26,0.85);
+  transition: transform .04s ease, box-shadow .04s ease;
+}
+.mac-btn:hover  { background: #f6f9f4; }
+.mac-btn:active { transform: translate(2px,2px); box-shadow: 0 0 0 0 rgba(26,26,26,0.85); }
+.mac-btn:disabled { opacity: .4; box-shadow: none; cursor: default; }
+
+/* Default/primary button — the classic double outline */
+.mac-btn--default {
+  background: var(--mac-navy);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--mac-panel), 0 0 0 4px var(--mac-ink), 3px 3px 0 0 rgba(26,26,26,0.6);
+}
+.mac-btn--default:hover { background: #1c2e5e; }
+.mac-btn--default:active { transform: translate(2px,2px); }
+
+/* Sunken inset well (content areas / list bodies) */
+.mac-inset {
+  background: #f8fbf6;
+  border: 2px solid var(--mac-ink);
+  border-radius: 4px;
+  box-shadow: inset 2px 2px 0 0 rgba(26,26,26,0.12);
+}
+
+/* Segmented retro progress bar */
+.mac-progress {
+  height: 14px;
+  border: 2px solid var(--mac-ink);
+  border-radius: 4px;
+  background: #fff;
+  overflow: hidden;
+}
+.mac-progress > span {
+  display: block;
+  height: 100%;
+  background-color: var(--mac-teal);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255,255,255,0.35), rgba(255,255,255,0.35) 3px,
+    transparent 3px, transparent 6px
+  );
+  transition: width .18s ease;
+}
+.mac-progress--done > span { background-color: var(--mac-navy); }
+
+/* Retro card — a small beveled tile */
+.mac-card {
+  background: #fff;
+  border: 2px solid var(--mac-ink);
+  border-radius: 5px;
+  box-shadow: 2px 2px 0 0 rgba(26,26,26,0.75);
+  transition: transform .05s ease, box-shadow .05s ease;
+}
+.mac-card:hover { box-shadow: 3px 3px 0 0 rgba(26,26,26,0.9); }
+.mac-card:active { transform: translate(1px,1px); }

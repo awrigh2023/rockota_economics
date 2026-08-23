@@ -9,6 +9,7 @@ import {
   BarChart3Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  SearchIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ViewHost from '../components/ViewHost';
@@ -162,6 +163,8 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const [activeDataset, setActiveDataset] = useState<string | null>(null);
   // Series sub-tab within the active dataset
   const [activeSeries, setActiveSeries] = useState<number | null>(null);
+  // Table search within the active dataset's sidebar
+  const [search, setSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -185,6 +188,12 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     () => visibleSeries.find((s) => s.id === activeSeries) ?? null,
     [visibleSeries, activeSeries],
   );
+
+  const filteredSeries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return visibleSeries;
+    return visibleSeries.filter((s) => (s.title ?? s.code ?? '').toLowerCase().includes(q));
+  }, [visibleSeries, search]);
 
   const loadMeta = useCallback(async () => {
     if (!token) return;
@@ -210,6 +219,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
 
   function selectDataset(d: string) {
     setActiveDataset(d);
+    setSearch('');
     const first = series.find((s) => s.dataset === d);
     setActiveSeries(first?.id ?? null);
   }
@@ -345,54 +355,84 @@ const UtilDetailInner = ({ id }: { id: string }) => {
                 </div>
               )}
 
-              {/* Series sub-tabs */}
-              {visibleSeries.length > 0 && (
-                <div className="flex items-center gap-1 border-b border-gray-200 mb-4 overflow-x-auto">
-                  {visibleSeries.map((s) => (
-                    <button key={s.id} onClick={() => setActiveSeries(s.id)}
-                      className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-                        activeSeries === s.id
-                          ? 'border-[#008080] text-[#008080]'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
-                      }`}>
-                      {s.title ?? s.code}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {/* Table browser: searchable sidebar + table */}
+              <div className="flex flex-col md:flex-row gap-4">
+                {/* Sidebar: list of tables in this dataset */}
+                <aside className="md:w-72 shrink-0">
+                  {visibleSeries.length > 6 && (
+                    <div className="relative mb-2">
+                      <SearchIcon size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder={`Search ${visibleSeries.length} tables…`}
+                        className="w-full rounded-md border border-gray-300 pl-8 pr-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none"
+                      />
+                    </div>
+                  )}
+                  <div className="border border-gray-200 rounded-lg bg-white overflow-hidden max-h-[70vh] overflow-y-auto divide-y divide-gray-100">
+                    {filteredSeries.length === 0 ? (
+                      <div className="px-3 py-6 text-center text-xs text-gray-400">No tables match “{search}”.</div>
+                    ) : filteredSeries.map((s) => {
+                      const active = activeSeries === s.id;
+                      return (
+                        <button key={s.id} onClick={() => setActiveSeries(s.id)}
+                          className={`w-full text-left px-3 py-2.5 border-l-[3px] transition-colors ${
+                            active
+                              ? 'border-l-[#008080] bg-[#008080]/8'
+                              : 'border-l-transparent hover:bg-gray-50'
+                          }`}>
+                          <div className={`text-sm leading-snug ${active ? 'text-[#008080] font-medium' : 'text-gray-700'}`}>
+                            {s.title ?? s.code}
+                          </div>
+                          {(s.frequency || s.unit) && (
+                            <div className="text-[11px] text-gray-400 mt-0.5">
+                              {[s.frequency, s.unit].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
 
-              {/* Date filters */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-500 whitespace-nowrap">From</label>
-                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                    className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+                {/* Right column: filters + table */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500 whitespace-nowrap">From</label>
+                      <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                        className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500 whitespace-nowrap">To</label>
+                      <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                        className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
+                    </div>
+                    {(dateFrom || dateTo) && (
+                      <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+                        className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+                    )}
+                  </div>
+
+                  {currentSeries ? (
+                    <>
+                      <h3 className="text-base font-semibold text-[#243975] mb-2">{currentSeries.title ?? currentSeries.code}</h3>
+                      <SeriesTable
+                        key={currentSeries.id}
+                        token={token ?? ''}
+                        series={currentSeries}
+                        dateFrom={dateFrom}
+                        dateTo={dateTo}
+                      />
+                    </>
+                  ) : (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center text-gray-400 text-sm">
+                      Select a table to view data.
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-500 whitespace-nowrap">To</label>
-                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                    className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
-                </div>
-                {(dateFrom || dateTo) && (
-                  <button onClick={() => { setDateFrom(''); setDateTo(''); }}
-                    className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
-                )}
               </div>
-
-              {/* Table for active series */}
-              {currentSeries ? (
-                <SeriesTable
-                  key={currentSeries.id}
-                  token={token ?? ''}
-                  series={currentSeries}
-                  dateFrom={dateFrom}
-                  dateTo={dateTo}
-                />
-              ) : (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center text-gray-400 text-sm">
-                  Select a series tab to view data.
-                </div>
-              )}
             </div>
           )
         )}
