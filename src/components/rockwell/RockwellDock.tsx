@@ -727,8 +727,9 @@ export default function RockwellDock() {
     </>
   );
 
-  // Shared Chats/Tasks/Goals panel — used as the full-screen left rail AND as
-  // the overlay when the rail is collapsed (small screen or non-full-screen).
+  const sidebarContent = sidebarTab === 'chats' ? chatListInner : sidebarTab === 'tasks' ? taskListInner : goalListInner;
+
+  // Full-screen left rail: its own tab header + the content.
   const sidebarBody = (
     <>
       <div className="flex items-center gap-1 px-2.5 pt-3 pb-2">
@@ -748,7 +749,7 @@ export default function RockwellDock() {
         )}
       </div>
       <div className="flex-1 overflow-y-auto px-2.5 pb-3">
-        {sidebarTab === 'chats' ? chatListInner : sidebarTab === 'tasks' ? taskListInner : goalListInner}
+        {sidebarContent}
       </div>
     </>
   );
@@ -861,6 +862,29 @@ export default function RockwellDock() {
         </aside>
       )}
       <div className="flex-1 flex flex-col min-h-0">
+      {/* Collapsed-mode switcher: reach Chats / Tasks / Goals without the rail */}
+      {owner && !useSidebar && (
+        <div className="flex items-center gap-1 px-2 py-1.5" style={{ background: NAVY, borderBottom: `1px solid ${GOLD}14` }}>
+          {([
+            { key: 'chat', label: 'Chat' },
+            { key: 'chats', label: 'Chats' },
+            { key: 'tasks', label: 'Tasks' },
+            { key: 'goals', label: 'Goals' },
+          ] as const).map((seg) => {
+            const active = seg.key === 'chat' ? !showChats : (showChats && sidebarTab === seg.key);
+            return (
+              <button key={seg.key}
+                onClick={() => { if (seg.key === 'chat') { setShowChats(false); } else { setSidebarTab(seg.key); setShowChats(true); } }}
+                className="flex-1 rounded-md py-1 text-[11px] font-medium"
+                style={active
+                  ? { background: GOLD, color: NAVY }
+                  : { background: 'transparent', color: 'rgba(0,0,0,0.6)', border: `1px solid ${GOLD}33` }}>
+                {seg.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {activeTask && (
         <div className="flex items-center gap-2 px-3 py-2 text-[12px]" style={{ background: `${GOLD}14`, borderBottom: `1px solid ${GOLD}22` }}>
           <span style={{ color: 'rgba(0,0,0,0.6)' }}>Working on:</span>
@@ -889,8 +913,8 @@ export default function RockwellDock() {
         </div>
       )}
       {owner && !useSidebar && showChats ? (
-        <div className="flex-1 flex flex-col min-h-0" style={{ color: 'rgba(0,0,0,0.85)' }}>
-          {sidebarBody}
+        <div className="flex-1 overflow-y-auto px-2.5 py-3" style={{ color: 'rgba(0,0,0,0.85)' }}>
+          {sidebarContent}
         </div>
       ) : status !== null && !status.connected ? (
         /* Not connected → setup panel */

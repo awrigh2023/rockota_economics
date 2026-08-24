@@ -21,9 +21,13 @@ import {
   refreshUtil,
   getRefreshStatus,
   exportObservations,
+  listTables,
+  getTable,
   UtilManifest,
   Series,
   Observation,
+  DataTableMeta,
+  DataTable,
 } from '../lib/api';
 
 const PAGE_SIZE = 200;
@@ -72,7 +76,7 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
           {series.unit && <> · {series.unit}</>}
         </span>
         <div className="flex items-center gap-3">
-          {series.metadata?.source_url && (
+          {!!series.metadata?.source_url && (
             <a href={String(series.metadata.source_url)} target="_blank" rel="noreferrer"
               className="text-xs text-[#243975] hover:underline">
               View source ↗
@@ -149,11 +153,59 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
+// Renders one wide/multi-column table (columns + rows) as a scrollable grid.
+function DataTableView({ token, utilId, meta }: { token: string; utilId: string; meta: DataTableMeta }) {
+  const [table, setTable] = useState<DataTable | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!token) return;
+    getTable(token, utilId, meta.code)
+      .then(setTable)
+      .catch((e) => setErr(e instanceof Error ? e.message : 'Failed to load table'));
+  }, [token, utilId, meta.code]);
+  const cols = table?.columns ?? [];
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-6">
+      <div className="px-4 py-3 border-b border-gray-100">
+        <h3 className="font-semibold text-[#243975]">{meta.title || meta.code}</h3>
+        <p className="text-xs text-gray-500">{meta.n_rows} rows · {meta.n_columns} columns</p>
+      </div>
+      {err ? (
+        <p className="p-4 text-sm text-red-600">{err}</p>
+      ) : !table ? (
+        <p className="p-4 text-sm text-gray-400">Loading…</p>
+      ) : (
+        <div className="overflow-x-auto max-h-[70vh]">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                {cols.map((c) => (
+                  <th key={c.key} className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">{c.label ?? c.key}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, i) => (
+                <tr key={i} className="border-t border-gray-100">
+                  {cols.map((c) => (
+                    <td key={c.key} className="px-3 py-1.5 whitespace-nowrap text-gray-800">{row[c.key] == null ? '' : String(row[c.key])}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const UtilDetailInner = ({ id }: { id: string }) => {
   const { token } = useAuth();
 
   const [manifest, setManifest] = useState<UtilManifest | null>(null);
   const [series, setSeries] = useState<Series[]>([]);
+  const [tables, setTables] = useState<DataTableMeta[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -200,9 +252,14 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     setLoading(true);
     setError(null);
     try {
-      const [m, s] = await Promise.all([getUtil(token, id), listSeries(token, id)]);
+      const [m, s, t] = await Promise.all([
+        getUtil(token, id),
+        listSeries(token, id),
+        listTables(token, id).catch(() => [] as DataTableMeta[]),
+      ]);
       setManifest(m);
       setSeries(s);
+      setTables(t);
       const ds = [...new Set(s.map((x) => x.dataset).filter(Boolean))] as string[];
       const initial = ds[0] ?? null;
       setActiveDataset((prev) => prev ?? initial);
@@ -314,6 +371,9 @@ const UtilDetailInner = ({ id }: { id: string }) => {
         {/* Top-level tabs */}
         <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
           <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<TableIcon size={16} />} label="Data" />
+          {tables.length > 0 && (
+            <TabButton active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} icon={<TableIcon size={16} />} label="Tables" />
+          )}
           {views.map((v) => (
             <TabButton key={v.id} active={activeTab === v.id} onClick={() => setActiveTab(v.id)} icon={<BarChart3Icon size={16} />} label={v.name} />
           ))}
@@ -322,8 +382,17 @@ const UtilDetailInner = ({ id }: { id: string }) => {
         {error && <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
         {notice && activeTab === 'data' && <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{notice}</div>}
 
+        {/* Tables tab (wide/multi-column) */}
+        {activeTab === 'tables' && (
+          <div>
+            {tables.map((t) => (
+              <DataTableView key={t.code} token={token ?? ''} utilId={id} meta={t} />
+            ))}
+          </div>
+        )}
+
         {/* View tab */}
-        {activeTab !== 'data' && (
+        {activeTab !== 'data' && activeTab !== 'tables' && (
           <ViewHost token={token ?? ''} utilId={id} viewId={activeTab} reports={manifest?.reports ?? []} />
         )}
 

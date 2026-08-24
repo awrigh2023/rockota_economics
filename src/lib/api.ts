@@ -128,6 +128,19 @@ export function listSeries(token: string, utilId: string): Promise<Series[]> {
   return getJson<Series[]>(`/api/series?util=${encodeURIComponent(utilId)}`, token);
 }
 
+// --- Wide/multi-column tables ---
+export interface TableColumn { key: string; label?: string }
+export interface DataTableMeta { id: number; util_id: string; code: string; title?: string; n_columns: number; n_rows: number }
+export interface DataTable { util_id: string; code: string; title?: string; columns: TableColumn[]; rows: Record<string, unknown>[] }
+
+export function listTables(token: string, utilId: string): Promise<DataTableMeta[]> {
+  return getJson<DataTableMeta[]>(`/api/tables?util=${encodeURIComponent(utilId)}`, token);
+}
+
+export function getTable(token: string, utilId: string, code: string): Promise<DataTable> {
+  return getJson<DataTable>(`/api/table?util=${encodeURIComponent(utilId)}&code=${encodeURIComponent(code)}`, token);
+}
+
 export interface RefreshJob {
   job_id: string;
   util: string;
