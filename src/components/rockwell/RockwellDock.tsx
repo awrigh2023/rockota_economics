@@ -764,13 +764,12 @@ export default function RockwellDock() {
 
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3" style={{ background: PANEL, borderBottom: `1px solid ${GOLD}22` }}>
-        <RockwellOrb size={24} state={streaming ? 'thinking' : 'idle'} />
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold leading-tight" style={{ color: '#0f2e2e' }}>Rockwell</div>
-          <div className="text-[11px] leading-tight flex items-center gap-1.5" style={{ color: 'rgba(0,0,0,0.55)' }}>
-            <span style={{ width: 6, height: 6, borderRadius: 99, background: status?.connected ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
-            {statusLine}
-          </div>
+        <div className="min-w-0 flex-1 flex items-center gap-2.5">
+          <img src="/rockwell_logo_transparent.svg" alt="Rockwell" draggable={false} style={{ height: 26, width: 'auto', flexShrink: 0 }} />
+          <span className="text-[11px] inline-flex items-center gap-1.5 min-w-0 truncate" style={{ color: 'rgba(0,0,0,0.55)' }}>
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: status?.connected ? '#4ade80' : '#f59e0b', flexShrink: 0, display: 'inline-block' }} />
+            <span className="truncate">{statusLine}</span>
+          </span>
         </div>
         {owner && (
           <button onClick={() => (useSidebar ? setSidebarOpen((v) => !v) : setShowChats((v) => !v))}
@@ -848,7 +847,7 @@ export default function RockwellDock() {
           onClick={() => quotes.length > 1 && setQuoteIdx((i) => (i + 1 + Math.floor(Math.random() * (quotes.length - 1))) % quotes.length)}
           title={quotes.length > 1 ? 'Another quote' : undefined}
           className="w-full px-4 py-1.5 text-[11px] italic text-center leading-snug"
-          style={{ color: 'rgba(0,0,0,0.5)', background: NAVY, borderBottom: `1px solid ${GOLD}14` }}
+          style={{ color: '#b8992e', background: PANEL, borderBottom: `1px solid ${GOLD}14` }}
         >
           “{quote.text}”{quote.author ? ` — ${quote.author}` : ''}
         </button>
@@ -977,23 +976,33 @@ export default function RockwellDock() {
             )}
             {status?.connected && messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-4" style={{ color: 'rgba(0,0,0,0.55)' }}>
-                <img src="/rockwell_logo.svg" alt="Rockwell" style={{ width: 'min(220px, 75%)', height: 'auto' }} draggable={false} />
+                <img src="/rockwell_logo_transparent.svg" alt="Rockwell" style={{ width: 'min(220px, 75%)', height: 'auto' }} draggable={false} />
                 <p className="mt-3 text-sm" style={{ color: 'rgba(0,0,0,0.85)' }}>Running on {source === 'claude' ? 'Claude' : 'your model'} — {model ? prettyModel(source, model) : '—'}.</p>
                 <p className="mt-1 text-[12px]">Ask me anything.</p>
               </div>
             )}
-            {messages.map((m, i) => (
-              <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                <div className="max-w-[85%] min-w-0 break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
-                  style={m.role === 'user' ? { background: GOLD, color: NAVY, overflowWrap: 'anywhere' } : { background: PANEL, color: '#1f2a44', border: `1px solid ${GOLD}1a`, overflowWrap: 'anywhere' }}>
-                  {m.role === 'assistant' ? (
+            {messages.map((m, i) => {
+              const isLast = i === messages.length - 1;
+              if (m.role === 'user') {
+                return (
+                  <div key={i} className="flex justify-end">
+                    <div className="max-w-[85%] min-w-0 break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+                      style={{ background: GOLD, color: NAVY, overflowWrap: 'anywhere' }}>
+                      <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.content}</span>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div key={i} className="flex justify-start items-start gap-2">
+                  <span className="shrink-0 mt-0.5"><RockwellOrb size={24} state={isLast && streaming ? 'thinking' : 'idle'} /></span>
+                  <div className="min-w-0 break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+                    style={{ maxWidth: 'calc(85% - 2rem)', background: PANEL, color: '#1f2a44', border: `1px solid ${GOLD}1a`, overflowWrap: 'anywhere' }}>
                     <div className="rw-md">
                       {m.content ? (
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                       ) : (
-                        <span className="inline-flex items-center gap-2" style={{ color: 'rgba(0,0,0,0.5)' }}>
-                          <RockwellOrb size={22} state="thinking" /> Thinking…
-                        </span>
+                        <span className="italic" style={{ color: 'rgba(0,0,0,0.45)' }}>Thinking…</span>
                       )}
                       {m.sources && m.sources.length > 0 && (
                         <div className="mt-2 pt-1.5 text-[10px]" style={{ borderTop: `1px solid ${GOLD}22`, color: 'rgba(0,0,0,0.45)' }}>
@@ -1001,12 +1010,10 @@ export default function RockwellDock() {
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.content}</span>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {grounding && (
               <div className="flex justify-start">
                 <div className="text-[11px] inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ color: GOLD, background: `${GOLD}12` }}>
