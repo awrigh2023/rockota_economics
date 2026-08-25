@@ -114,6 +114,7 @@ export default function RockwellDock() {
   const [isNarrow, setIsNarrow] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 640);
   const [input, setInput] = useState('');
   const [sessions, setSessions] = useState<Record<string, ChatSession>>({}); // per-chat state → concurrency
+  const [unread, setUnread] = useState<Record<string, boolean>>({}); // chats with a finished-but-unseen reply
   const [status, setStatus] = useState<ModelStatus | null>(null); // null = checking
   const [source, setSourceState] = useState<ModelSource>(getSource());
   const [modelName, setModelName] = useState<string | null>(null);
@@ -145,6 +146,10 @@ export default function RockwellDock() {
   const abortRefs = useRef<Record<string, AbortController>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Live mirrors so the async send() can tell, at completion, whether the user
+  // is actually looking at that chat (to decide if a reply is "unread").
+  const activeIdRef = useRef<string | null>(activeId);
+  const openRef = useRef<boolean>(open);
 
   // Track a narrow viewport so we collapse the sidebar and keep chat visible.
   useEffect(() => {
@@ -155,6 +160,14 @@ export default function RockwellDock() {
     return () => mq.removeEventListener('change', on);
   }, []);
 
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  useEffect(() => { openRef.current = open; }, [open]);
+  // Ask once for browser-notification permission (best-effort; no-op if denied).
+  useEffect(() => {
+    if (open && owner && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => { /* ignore */ });
+    }
+  }, [open, owner]);
   useEffect(() => { localStorage.setItem('rw_open', open ? '1' : '0'); }, [open]);
   useEffect(() => { localStorage.setItem('rw_expanded', expanded ? '1' : '0'); }, [expanded]);
   useEffect(() => { localStorage.setItem('rw_fullscreen', fullscreen ? '1' : '0'); }, [fullscreen]);
@@ -257,6 +270,7 @@ export default function RockwellDock() {
   const activeGoal: GoalRef | null = activeId ? (goalByChat[activeId] ?? null) : null;
   const activeGoalFull = activeGoal ? board?.goals?.find((g) => g.id === activeGoal.id) ?? null : null;
   const runningCount = Object.values(sessions).filter((s) => s.streaming).length;
+  const unreadCount = Object.values(unread).filter(Boolean).length;
   const quote = quotes.length ? quotes[quoteIdx % quotes.length] : null;
   const patchSession = (id: string, up: (s: ChatSession) => ChatSession) =>
     setSessions((prev) => ({ ...prev, [id]: up(prev[id] || { messages: [], streaming: false }) }));
@@ -285,6 +299,7 @@ export default function RockwellDock() {
     if (!token) return;
     setActiveId(id);
     setShowChats(false);
+    setUnread((u) => { if (!u[id]) return u; const n = { ...u }; delete n[id]; return n; });
     if (!sessions[id]) {
       const chat = await loadChat(token, id);
       patchSession(id, () => ({ messages: chat?.messages ?? [], streaming: false }));
@@ -499,6 +514,15 @@ export default function RockwellDock() {
       if (acc.trim()) {
         const finalMsgs: ChatMsg[] = [...prior, { role: 'user', content: text }, { role: 'assistant', content: acc, sources }];
         persistTurn(chatId, finalMsgs);
+        // Notify if the user isn't currently looking at this chat.
+        const notViewing = !openRef.current || activeIdRef.current !== chatId;
+        if (notViewing) setUnread((u) => ({ ...u, [chatId]: true }));
+        try {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted'
+              && typeof document !== 'undefined' && document.hidden) {
+            new Notification('Rockwell', { body: 'A reply is ready.' });
+          }
+        } catch { /* ignore */ }
       }
     }
   }
@@ -514,6 +538,12 @@ export default function RockwellDock() {
       >
         <span className="absolute inset-0 rounded-full animate-pulse" style={{ background: `${GOLD}22` }} />
         <RockwellOrb size={30} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+            style={{ background: '#008080', color: '#fff', border: '2px solid #fff' }}>
+            {unreadCount}
+          </span>
+        )}
       </button>
     );
   }
@@ -574,13 +604,15 @@ export default function RockwellDock() {
                 <>
                   <button onClick={() => openChat(c.id)} className="flex-1 min-w-0 text-left" title={c.title}>
                     <span className="flex items-center gap-1.5">
-                      {sessions[c.id]?.streaming && (
+                      {sessions[c.id]?.streaming ? (
                         <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: 9999, background: GOLD, flexShrink: 0 }} />
-                      )}
-                      <span className="truncate text-[13px]" style={{ color: '#1f2a44' }}>{c.title}</span>
+                      ) : unread[c.id] ? (
+                        <span title="New reply" style={{ width: 6, height: 6, borderRadius: 9999, background: '#008080', flexShrink: 0 }} />
+                      ) : null}
+                      <span className="truncate text-[13px]" style={{ color: '#1f2a44', fontWeight: unread[c.id] ? 600 : 400 }}>{c.title}</span>
                     </span>
                     <span className="block text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>
-                      {sessions[c.id]?.streaming ? 'working…' : (c.updatedAt ? c.updatedAt.slice(0, 10) : '')}{c.source === 'claude' ? ' · Claude' : c.source === 'local' ? ' · Local' : ''}
+                      {sessions[c.id]?.streaming ? 'working…' : unread[c.id] ? 'new reply' : (c.updatedAt ? c.updatedAt.slice(0, 10) : '')}{c.source === 'claude' ? ' · Claude' : c.source === 'local' ? ' · Local' : ''}
                     </span>
                   </button>
                   <button onClick={() => { setRenamingId(c.id); setRenameDraft(c.title); }} title="Rename"
