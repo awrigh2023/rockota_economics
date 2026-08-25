@@ -13,9 +13,9 @@
  * Chat history (owner only) is saved in the vault via chatStore: switch chats,
  * rename, delete. Vault/util tool wiring through the model comes next.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   SendIcon, XIcon, Maximize2Icon, Minimize2Icon, MaximizeIcon, MinimizeIcon, SquarePenIcon, StopCircleIcon,
@@ -86,6 +86,27 @@ function RockwellOrb({ size = 26, state = 'idle' }: { size?: number; state?: 'id
     </span>
   );
 }
+
+// Markdown renderers: distinct card for code blocks; +/- coloring for diffs.
+const mdComponents: Components = {
+  pre: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  code: ({ className, children }: { className?: string; children?: ReactNode }) => {
+    const text = String(children ?? '');
+    const lang = /language-(\w+)/.exec(className || '')?.[1];
+    const isBlock = !!lang || text.includes('\n');
+    if (!isBlock) return <code className="rw-inline">{children}</code>;
+    if (lang === 'diff') {
+      return (
+        <pre className="rw-code rw-diff">
+          {text.replace(/\n+$/, '').split('\n').map((ln, i) => (
+            <div key={i} className={ln.startsWith('@@') ? 'l-hunk' : ln.startsWith('+') ? 'l-add' : ln.startsWith('-') ? 'l-del' : undefined}>{ln || ' '}</div>
+          ))}
+        </pre>
+      );
+    }
+    return <pre className="rw-code"><code>{text.replace(/\n+$/, '')}</code></pre>;
+  },
+};
 
 const PAGE_LABEL: Record<string, string> = {
   '/': 'Home', '/library': 'The Empirics', '/utils': 'Utils',
@@ -792,7 +813,15 @@ export default function RockwellDock() {
       style={{ ...posStyle, background: NAVY, border: `1px solid ${GOLD}33`, color: '#1f2a44' }}
     >
       {/* Keep long content (code, URLs, tables) inside the bubble on any screen */}
-      <style>{`.rw-md{overflow-wrap:anywhere;word-break:break-word}.rw-md pre{max-width:100%;overflow-x:auto}.rw-md code{white-space:pre-wrap;word-break:break-word}.rw-md pre code{white-space:pre}.rw-md table{display:block;max-width:100%;overflow-x:auto}.rw-md img{max-width:100%;height:auto}`}</style>
+      <style>{`.rw-md{overflow-wrap:anywhere;word-break:break-word}.rw-md table{display:block;max-width:100%;overflow-x:auto}.rw-md img{max-width:100%;height:auto}
+        .rw-md .rw-inline{background:rgba(0,0,0,0.06);padding:0 4px;border-radius:4px;font-size:0.92em;white-space:pre-wrap;word-break:break-word}
+        .rw-md .rw-code{background:#f4f7f6;border:1px solid ${GOLD}33;border-left:3px solid #008080;border-radius:8px;padding:8px 10px;margin:6px 0;max-width:100%;overflow-x:auto;font-size:12px;line-height:1.45}
+        .rw-md .rw-code code{white-space:pre;background:none;padding:0;border:0;font-size:inherit}
+        .rw-md .rw-diff{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre}
+        .rw-md .rw-diff div{padding:0 4px;border-radius:2px}
+        .rw-md .rw-diff .l-add{background:rgba(34,197,94,0.16);color:#166534}
+        .rw-md .rw-diff .l-del{background:rgba(239,68,68,0.16);color:#991b1b}
+        .rw-md .rw-diff .l-hunk{color:#0f766e;font-weight:600}`}</style>
 
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3" style={{ background: PANEL, borderBottom: `1px solid ${GOLD}22` }}>
@@ -1032,7 +1061,7 @@ export default function RockwellDock() {
                     style={{ maxWidth: 'calc(85% - 2rem)', background: PANEL, color: '#1f2a44', border: `1px solid ${GOLD}1a`, overflowWrap: 'anywhere' }}>
                     <div className="rw-md">
                       {m.content ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{m.content}</ReactMarkdown>
                       ) : (
                         <span className="italic" style={{ color: 'rgba(0,0,0,0.45)' }}>Thinking…</span>
                       )}
