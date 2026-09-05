@@ -17,9 +17,11 @@ import {
   getRefreshStatus,
   listTables,
   getTable,
+  getTablePage,
   UtilManifest,
   DataTableMeta,
   DataTable,
+  TableColumn,
 } from '../lib/api';
 import * as XLSX from 'xlsx';
 
@@ -27,8 +29,153 @@ import * as XLSX from 'xlsx';
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
+// Dispatcher: small tables render fully client-side; large (paged) tables
+// fetch a page at a time from the server.
+function DataTableView(props: { token: string; utilId: string; meta: DataTableMeta }) {
+  return props.meta.paged
+    ? <PagedTableView {...props} />
+    : <WideTableView {...props} />;
+}
+
+const PAGE_SIZES = [50, 100, 250, 500];
+const MAX_EXPORT = 100000; // cap client-side Excel export of very large tables
+
+// Renders one large table with server-side pagination + substring filter.
+function PagedTableView({ token, utilId, meta }: { token: string; utilId: string; meta: DataTableMeta }) {
+  const [cols, setCols] = useState<TableColumn[]>([]);
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(100);
+  const [queryInput, setQueryInput] = useState('');
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  // columns come from the table metadata endpoint (rows are empty for paged)
+  useEffect(() => {
+    if (!token) return;
+    getTable(token, utilId, meta.code)
+      .then((t) => setCols(t.columns ?? []))
+      .catch((e) => setErr(e instanceof Error ? e.message : 'Failed to load table'));
+  }, [token, utilId, meta.code]);
+
+  // debounce the search box
+  useEffect(() => {
+    const h = setTimeout(() => { setQuery(queryInput.trim()); setPage(0); }, 350);
+    return () => clearTimeout(h);
+  }, [queryInput]);
+
+  useEffect(() => {
+    if (!token) return;
+    setLoading(true);
+    getTablePage(token, utilId, meta.code, page * pageSize, pageSize, query || undefined)
+      .then((r) => { setRows(r.rows); setTotal(r.total); setLoading(false); })
+      .catch((e) => { setErr(e instanceof Error ? e.message : 'Failed to load rows'); setLoading(false); });
+  }, [token, utilId, meta.code, page, pageSize, query]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  async function exportXlsx() {
+    if (!token) return;
+    setExporting(true);
+    try {
+      const cap = Math.min(total, MAX_EXPORT);
+      const all: Record<string, unknown>[] = [];
+      for (let off = 0; off < cap; off += 1000) {
+        const r = await getTablePage(token, utilId, meta.code, off, 1000, query || undefined);
+        all.push(...r.rows);
+        if (r.rows.length === 0) break;
+      }
+      const keys = cols.map((c) => c.key);
+      const header = cols.map((c) => c.label ?? c.key);
+      const aoa = [header, ...all.map((row) => keys.map((k) => (row[k] == null ? '' : row[k])))];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, (meta.code || 'table').slice(0, 31));
+      XLSX.writeFile(wb, `${utilId}_${meta.code}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-6">
+      <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-[#243975]">{meta.title || meta.code}</h3>
+          <p className="text-xs text-gray-500">
+            {total.toLocaleString()} rows · {cols.length} columns
+            {query && ' (filtered)'}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={queryInput} onChange={(e) => setQueryInput(e.target.value)} placeholder="Filter rows…"
+              className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md w-44 focus:outline-none focus:ring-1 focus:ring-[#008080]" />
+          </div>
+          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+            className="text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#008080]">
+            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / page</option>)}
+          </select>
+          <button onClick={exportXlsx} disabled={exporting || total === 0}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#008080] px-3 py-1.5 text-sm font-medium text-[#008080] hover:bg-[#008080]/10 disabled:opacity-50">
+            <DownloadIcon size={14} />
+            <span>{exporting ? 'Exporting…' : 'Export to Excel'}</span>
+          </button>
+        </div>
+      </div>
+      {err ? (
+        <p className="p-4 text-sm text-red-600">{err}</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto max-h-[70vh]">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  {cols.map((c) => (
+                    <th key={c.key} className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">{c.label ?? c.key}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={cols.length || 1} className="px-3 py-10 text-center text-gray-400 text-xs">Loading…</td></tr>
+                ) : rows.length === 0 ? (
+                  <tr><td colSpan={cols.length || 1} className="px-3 py-10 text-center text-gray-400 text-xs">No rows match.</td></tr>
+                ) : rows.map((row, i) => (
+                  <tr key={i} className="border-t border-gray-100">
+                    {cols.map((c) => (
+                      <td key={c.key} className="px-3 py-1.5 whitespace-nowrap text-gray-800">{row[c.key] == null ? '' : String(row[c.key])}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between gap-2 px-4 py-2 border-t border-gray-100 text-xs text-gray-500">
+            <span>Page {page + 1} of {totalPages.toLocaleString()}</span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(0)} disabled={page === 0}
+                className="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30">« First</button>
+              <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+                className="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30">‹ Prev</button>
+              <button onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))} disabled={page + 1 >= totalPages}
+                className="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30">Next ›</button>
+              <button onClick={() => setPage(totalPages - 1)} disabled={page + 1 >= totalPages}
+                className="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-30">Last »</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Renders one wide/multi-column table (columns + rows) as a scrollable grid.
-function DataTableView({ token, utilId, meta }: { token: string; utilId: string; meta: DataTableMeta }) {
+function WideTableView({ token, utilId, meta }: { token: string; utilId: string; meta: DataTableMeta }) {
   const [table, setTable] = useState<DataTable | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState('');

@@ -132,8 +132,9 @@ export function listSeries(token: string, utilId: string): Promise<Series[]> {
 
 // --- Wide/multi-column tables ---
 export interface TableColumn { key: string; label?: string }
-export interface DataTableMeta { id: number; util_id: string; code: string; title?: string; n_columns: number; n_rows: number }
-export interface DataTable { util_id: string; code: string; title?: string; columns: TableColumn[]; rows: Record<string, unknown>[] }
+export interface DataTableMeta { id: number; util_id: string; code: string; title?: string; n_columns: number; n_rows: number; paged?: boolean }
+export interface DataTable { util_id: string; code: string; title?: string; columns: TableColumn[]; rows: Record<string, unknown>[]; paged?: boolean; n_rows?: number }
+export interface TablePage { total: number; offset: number; limit: number; rows: Record<string, unknown>[] }
 
 export function listTables(token: string, utilId: string): Promise<DataTableMeta[]> {
   return getJson<DataTableMeta[]>(`/api/tables?util=${encodeURIComponent(utilId)}`, token);
@@ -141,6 +142,16 @@ export function listTables(token: string, utilId: string): Promise<DataTableMeta
 
 export function getTable(token: string, utilId: string, code: string): Promise<DataTable> {
   return getJson<DataTable>(`/api/table?util=${encodeURIComponent(utilId)}&code=${encodeURIComponent(code)}`, token);
+}
+
+/** Paged rows for a large (paged) wide table, with optional substring filter. */
+export function getTablePage(
+  token: string, utilId: string, code: string,
+  offset: number, limit: number, q?: string,
+): Promise<TablePage> {
+  const p = new URLSearchParams({ util: utilId, code, offset: String(offset), limit: String(limit) });
+  if (q) p.append('q', q);
+  return getJson<TablePage>(`/api/table/page?${p.toString()}`, token);
 }
 
 export interface RefreshJob {
