@@ -118,6 +118,23 @@ function pageContext(pathname: string): string {
   return PAGE_LABEL[pathname] ?? 'Rockota';
 }
 
+// Turn a stream/connection failure into an actionable message, tailored to the
+// active source (local runner vs the Claude bridge).
+function rockwellError(e: unknown, source: ModelSource): string {
+  const m = (e as { message?: string })?.message || '';
+  const status = Number((m.match(/\((\d{3})\)/) || [])[1]);
+  if (status === 404) return '⚠ That model was not found on the server. Pick another from the model list.';
+  if (status === 401 || status === 403) {
+    return source === 'claude'
+      ? '⚠ The Rockwell bridge is running but not authorized. Run `claude login` where the bridge runs, then retry.'
+      : '⚠ The model server refused the request. Check its settings and retry.';
+  }
+  if (status >= 500) return '⚠ The model server errored mid-generation. Retry, or try a smaller model.';
+  return source === 'claude'
+    ? '⚠ Cannot reach the Rockwell bridge on :4025. Start it (`npm run start` in rockwell-bridge) and make sure you are logged in (`claude login`).'
+    : '⚠ Cannot reach your local model on :11434. Is your runner up? (e.g. `ollama serve`)';
+}
+
 function resolveModel(s: ModelStatus | null, src: ModelSource): string | null {
   if (!s?.connected) return null;
   const pref = getPreferredModel(src);
@@ -154,6 +171,7 @@ export default function RockwellDock() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskBoardOpen, setTaskBoardOpen] = useState(false);
   const [expandTask, setExpandTask] = useState<Task | null>(null);
+  const [retryText, setRetryText] = useState<Record<string, string>>({});
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [taskByChat, setTaskByChat] = useState<Record<string, ActiveTaskRef | null>>(() => {
     try { return JSON.parse(localStorage.getItem('rw_task_by_chat') || '{}'); } catch { return {}; }
@@ -217,6 +235,26 @@ export default function RockwellDock() {
       loadBoard(token).then(setBoard).catch(() => { /* keep existing */ });
     }
   }, [open, owner, token, fullscreen, sidebarTab, activeId, taskByChat, goalByChat, taskBoardOpen]);
+
+  // Auto-reconnect: while the dock is open but the model is unreachable, re-probe
+  // with backoff, and re-check whenever the window regains focus. Clears the common
+  // "started Ollama/the bridge after the page loaded" dead state.
+  useEffect(() => {
+    if (!open || status?.connected) return;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      detectLocalModel().then((s) => {
+        if (s.connected) { setStatus(s); return; }
+        attempt += 1;
+        timer = setTimeout(tick, Math.min(15000, 3000 * attempt));
+      }).catch(() => { attempt += 1; timer = setTimeout(tick, Math.min(15000, 3000 * attempt)); });
+    };
+    timer = setTimeout(tick, 3000);
+    const onFocus = () => { detectLocalModel().then((s) => s.connected && setStatus(s)).catch(() => {}); };
+    window.addEventListener('focus', onFocus);
+    return () => { clearTimeout(timer); window.removeEventListener('focus', onFocus); };
+  }, [open, status?.connected]);
 
   const check = useCallback(() => {
     setStatus(null);
@@ -483,7 +521,20 @@ export default function RockwellDock() {
     }
     if (overrideText === undefined) setInput('');
     const prior = sessions[chatId]?.messages ?? [];
-    const history: LocalMsg[] = prior.map((m) => ({ role: m.role, content: m.content }));
+    let history: LocalMsg[] = prior.map((m) => ({ role: m.role, content: m.content }));
+    // Small local models have tiny context windows — keep only the most recent
+    // turns within a char budget so long chats don't silently overflow/truncate.
+    {
+      const MAX_CTX_CHARS = 24000;
+      let total = 0;
+      const kept: LocalMsg[] = [];
+      for (let i = history.length - 1; i >= 0; i--) {
+        total += history[i].content.length;
+        if (total > MAX_CTX_CHARS && kept.length) break;
+        kept.unshift(history[i]);
+      }
+      history = kept;
+    }
     patchSession(chatId, (s) => ({ messages: [...s.messages, { role: 'user', content: text }, { role: 'assistant', content: '' }], streaming: true }));
     const controller = new AbortController();
     abortRefs.current[chatId] = controller;
@@ -529,8 +580,17 @@ export default function RockwellDock() {
     ];
     const auth = useClaudeTools && token ? { token, apiBase: API_URL, allowWrites } : undefined;
     let acc = '';
+    let stalled = false;
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+    const STALL_MS = 45000;
+    const armStall = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => { stalled = true; controller.abort(); }, STALL_MS);
+    };
     try {
+      armStall();
       for await (const tok of streamLocalChat(model, req, controller.signal, auth)) {
+        armStall();
         acc += tok;
         patchSession(chatId, (s) => {
           const c = [...s.messages];
@@ -539,20 +599,29 @@ export default function RockwellDock() {
         });
       }
     } catch (e) {
-      if ((e as { name?: string })?.name !== 'AbortError') {
+      const isAbort = (e as { name?: string })?.name === 'AbortError';
+      if (!isAbort || stalled) {
+        const msg = stalled
+          ? '⚠ Your model went quiet (no output for 45s). It may be overloaded — retry, or try a smaller model.'
+          : rockwellError(e, source);
         patchSession(chatId, (s) => {
           const c = [...s.messages];
           if (c.length && c[c.length - 1].role === 'assistant' && !c[c.length - 1].content) {
-            c[c.length - 1] = { role: 'assistant', content: '⚠ Lost contact with your model. Is the server still running?' };
+            c[c.length - 1] = { role: 'assistant', content: msg };
+          } else {
+            c.push({ role: 'assistant', content: msg });
           }
           return { ...s, messages: c };
         });
+        setRetryText((r) => ({ ...r, [chatId]: text }));
       }
     } finally {
+      if (stallTimer) clearTimeout(stallTimer);
       patchSession(chatId, (s) => ({ ...s, streaming: false }));
       delete abortRefs.current[chatId];
       setGrounding(null);
       if (acc.trim()) {
+        setRetryText((r) => { const n = { ...r }; delete n[chatId]; return n; });
         const finalMsgs: ChatMsg[] = [...prior, { role: 'user', content: text }, { role: 'assistant', content: acc, sources }];
         persistTurn(chatId, finalMsgs);
         // Notify if the user isn't currently looking at this chat.
@@ -1272,6 +1341,18 @@ export default function RockwellDock() {
               </div>
             )}
           </div>
+
+          {/* Retry the last failed turn */}
+          {activeId && retryText[activeId] && !streaming && (
+            <div className="px-3 pt-2">
+              <button
+                onClick={() => { const t = retryText[activeId]; if (t) { setRetryText((r) => { const n = { ...r }; delete n[activeId]; return n; }); send(t, activeId); } }}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[12px] font-medium"
+                style={{ background: 'transparent', color: GOLD, border: `1px solid ${GOLD}59` }}>
+                <RefreshCwIcon size={13} /> Retry last message
+              </button>
+            </div>
+          )}
 
           {/* Input */}
           <div className="px-3 py-3" style={{ background: PANEL, borderTop: `1px solid ${GOLD}22` }}>

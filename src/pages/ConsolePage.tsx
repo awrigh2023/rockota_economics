@@ -25,7 +25,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../context/AuthContext';
-import { vaultList, vaultGraph, VaultFile } from '../lib/vault-api';
+import { vaultList, vaultGraph, VaultFile, API_URL } from '../lib/vault-api';
 import {
   Board,
   Bucket,
@@ -34,6 +34,7 @@ import {
   Horizon,
   Status,
   Priority,
+  ScheduleItem,
   STATUS_LABEL,
   PRIORITY_LABEL,
   HORIZON_LABEL,
@@ -43,7 +44,13 @@ import {
   defaultBoard,
   newId,
   newGoal,
+  newScheduleItem,
+  scheduleMinutes,
 } from '../lib/console';
+import {
+  detectLocalModel, getSource, getPreferredModel, streamLocalChat,
+} from '../lib/localModel';
+import { SparklesIcon, Clock3Icon } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -739,6 +746,141 @@ function BucketColumn(props: ColumnProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Schedule — today's freeform time-based plan + Rockwell's read on the day
+// ---------------------------------------------------------------------------
+
+function SchedulePanel({ board, token, onAdd, onToggle, onSave, onDelete }: {
+  board: Board;
+  token: string | null;
+  onAdd: (time: string, text: string) => void;
+  onToggle: (id: string) => void;
+  onSave: (item: ScheduleItem) => void;
+  onDelete: (id: string) => void;
+}) {
+  const items = [...(board.schedule ?? [])].sort(
+    (a, z) => scheduleMinutes(a.time) - scheduleMinutes(z.time) || a.createdAt.localeCompare(z.createdAt));
+  const [time, setTime] = useState('');
+  const [text, setText] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [eTime, setETime] = useState('');
+  const [eText, setEText] = useState('');
+  const [advice, setAdvice] = useState('');
+  const [thinking, setThinking] = useState(false);
+  const [adviceErr, setAdviceErr] = useState<string | null>(null);
+
+  function submitAdd() {
+    if (!text.trim()) return;
+    onAdd(time, text);
+    setTime(''); setText('');
+  }
+  function startEdit(s: ScheduleItem) { setEditId(s.id); setETime(s.time); setEText(s.text); }
+  function commitEdit(s: ScheduleItem) {
+    if (eText.trim()) onSave({ ...s, time: eTime.trim(), text: eText.trim() });
+    setEditId(null);
+  }
+
+  async function askRockwell() {
+    setThinking(true); setAdvice(''); setAdviceErr(null);
+    try {
+      const status = await detectLocalModel();
+      if (!status.connected) {
+        setAdviceErr('Rockwell isn’t reachable. Start your local model (or the Claude bridge) and try again.');
+        return;
+      }
+      const source = getSource();
+      const pref = getPreferredModel(source);
+      const model = pref && status.models.includes(pref) ? pref : status.models[0];
+      if (!model) { setAdviceErr('No model available.'); return; }
+      const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+      const sched = items.length
+        ? items.map((s) => `${s.time || '—'} · ${s.text}${s.done ? ' (done)' : ''}`).join('\n')
+        : '(nothing scheduled yet)';
+      const openTasks = board.tasks.filter((t) => t.status !== 'done')
+        .slice(0, 20).map((t) => `- ${t.title}${t.due ? ` (due ${t.due})` : ''}`).join('\n') || '(none)';
+      const goals = board.goals.map((g) => `- ${HORIZON_LABEL[g.horizon]}: ${g.title} (${g.progress}%)`).join('\n') || '(none)';
+      const prompt =
+        `You are my personal assistant. Today is ${today}.\n\n` +
+        `MY SCHEDULE TODAY:\n${sched}\n\nOPEN TASKS:\n${openTasks}\n\nGOALS:\n${goals}\n\n` +
+        `Give me a short, warm, practical read on my day: is it realistic, what to prioritize, ` +
+        `any time conflicts or open gaps I could use, and 1–2 concrete suggestions to get the ` +
+        `important things done. Keep it tight — a few sentences or a couple of bullets. Talk to me directly.`;
+      const auth = source === 'claude' && token ? { token, apiBase: API_URL, allowWrites: false } : undefined;
+      for await (const tok of streamLocalChat(model, [{ role: 'user', content: prompt }], undefined, auth)) {
+        setAdvice((a) => a + tok);
+      }
+    } catch (e) {
+      setAdviceErr(e instanceof Error ? e.message : 'Rockwell could not respond.');
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  return (
+    <MacWindow title={<span className="inline-flex items-center gap-1.5"><Clock3Icon size={12} /> Today</span>} className="mb-6">
+      <div className="p-4">
+        {items.length === 0 ? (
+          <p className="font-crt text-gray-500 text-sm mb-3">Nothing on today’s schedule yet — add what you’re doing, e.g. “1:00 PM · Museum”.</p>
+        ) : (
+          <ul className="space-y-1 mb-3">
+            {items.map((s) => (
+              <li key={s.id} className="flex items-center gap-2 group">
+                <button onClick={() => onToggle(s.id)} className="shrink-0 text-[#008080]" title="Toggle done">
+                  {s.done ? <CheckCircle2Icon size={18} /> : <CircleIcon size={18} className="text-gray-300" />}
+                </button>
+                {editId === s.id ? (
+                  <>
+                    <input value={eTime} onChange={(e) => setETime(e.target.value)} placeholder="time"
+                      className="w-24 rounded border border-gray-300 px-2 py-1 text-sm" />
+                    <input value={eText} autoFocus onChange={(e) => setEText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(s); if (e.key === 'Escape') setEditId(null); }}
+                      className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm" />
+                    <button onClick={() => commitEdit(s)} className="mac-btn text-xs">Save</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-24 shrink-0 text-xs font-medium text-[#243975]">{s.time || '—'}</span>
+                    <span className={`flex-1 text-sm ${s.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>{s.text}</span>
+                    <button onClick={() => startEdit(s)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-[#243975]"><PencilIcon size={14} /></button>
+                    <button onClick={() => onDelete(s.id)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2Icon size={14} /></button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center gap-2">
+          <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="1:00 PM"
+            onKeyDown={(e) => { if (e.key === 'Enter') submitAdd(); }}
+            className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#008080]" />
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="What’s happening…"
+            onKeyDown={(e) => { if (e.key === 'Enter') submitAdd(); }}
+            className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:border-[#008080]" />
+          <button onClick={submitAdd} className="mac-btn text-xs"><PlusIcon size={14} /> Add</button>
+        </div>
+
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#243975]"><SparklesIcon size={14} /> Rockwell’s read on your day</span>
+            <button onClick={askRockwell} disabled={thinking} className="mac-btn text-xs disabled:opacity-50">
+              {thinking ? 'Thinking…' : advice ? 'Refresh' : 'Ask Rockwell'}
+            </button>
+          </div>
+          {adviceErr && <p className="text-xs text-red-600">{adviceErr}</p>}
+          {advice && (
+            <div className="rw-md text-sm text-gray-800 bg-[#eef5f3] rounded-md p-3">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{advice}</ReactMarkdown>
+            </div>
+          )}
+          {!advice && !adviceErr && !thinking && (
+            <p className="text-xs text-gray-400">Have Rockwell look over your schedule, tasks, and goals and suggest how to make the day work.</p>
+          )}
+        </div>
+      </div>
+    </MacWindow>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -872,6 +1014,32 @@ const ConsolePage = () => {
     setEditingGoal(null);
   }
 
+  // ── Schedule (today) mutations ──────────────────────────────────────────────
+
+  function addScheduleItem(time: string, text: string) {
+    update((b) => ({ ...b, schedule: [...(b.schedule ?? []), newScheduleItem(time, text)] }));
+  }
+
+  function toggleScheduleDone(id: string) {
+    update((b) => ({
+      ...b,
+      schedule: (b.schedule ?? []).map((s) =>
+        s.id === id ? { ...s, done: !s.done, updatedAt: new Date().toISOString() } : s),
+    }));
+  }
+
+  function saveScheduleItem(item: ScheduleItem) {
+    update((b) => ({
+      ...b,
+      schedule: (b.schedule ?? []).map((s) =>
+        s.id === item.id ? { ...item, updatedAt: new Date().toISOString() } : s),
+    }));
+  }
+
+  function deleteScheduleItem(id: string) {
+    update((b) => ({ ...b, schedule: (b.schedule ?? []).filter((s) => s.id !== id) }));
+  }
+
   // ── Bucket mutations ────────────────────────────────────────────────────────
 
   function addBucket(name: string) {
@@ -951,6 +1119,16 @@ const ConsolePage = () => {
 
         {/* Vault pulse — the brains behind Rockota */}
         {token && <VaultPulseStrip token={token} />}
+
+        {/* Today's schedule + Rockwell's read on the day */}
+        <SchedulePanel
+          board={board}
+          token={token}
+          onAdd={addScheduleItem}
+          onToggle={toggleScheduleDone}
+          onSave={saveScheduleItem}
+          onDelete={deleteScheduleItem}
+        />
 
         {/* Goals */}
         <GoalsPanel

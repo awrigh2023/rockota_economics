@@ -74,11 +74,44 @@ export interface Goal {
   updatedAt: string;
 }
 
+// A single freeform item on today's schedule (not a task): a time + a thing.
+export interface ScheduleItem {
+  id: string;
+  time: string; // freeform label, e.g. "1:00 PM" or "" for untimed
+  text: string;
+  done: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Board {
   version: number;
   buckets: Bucket[];
   tasks: Task[];
   goals: Goal[];
+  schedule: ScheduleItem[];
+}
+
+/** Sort key (minutes since midnight) for a freeform time label; untimed sinks. */
+export function scheduleMinutes(time: string): number {
+  const m = (time || '').trim().match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
+  if (!m) return Number.POSITIVE_INFINITY;
+  let h = parseInt(m[1], 10);
+  const min = m[2] ? parseInt(m[2], 10) : 0;
+  const ap = m[3] ? m[3].toLowerCase() : '';
+  if (ap === 'pm' && h < 12) h += 12;
+  if (ap === 'am' && h === 12) h = 0;
+  if (Number.isNaN(h)) return Number.POSITIVE_INFINITY;
+  return h * 60 + min;
+}
+
+export function newScheduleItem(time: string, text: string): ScheduleItem {
+  const now = new Date().toISOString();
+  return {
+    id: newId('s'), time: time.trim(), text: text.trim(),
+    done: false, order: 0, createdAt: now, updatedAt: now,
+  };
 }
 
 export const SEED_BUCKETS = ['Rockota', 'Libertas', 'Metro Denver EDC', 'Personal'];
@@ -93,6 +126,7 @@ export function defaultBoard(): Board {
     buckets: SEED_BUCKETS.map((name) => ({ id: newId('b'), name })),
     tasks: [],
     goals: [],
+    schedule: [],
   };
 }
 
@@ -133,6 +167,23 @@ function coerceGoal(raw: unknown): Goal | null {
     progress,
     target: typeof r.target === 'string' && r.target ? r.target : null,
     notes: typeof r.notes === 'string' ? r.notes : '',
+    createdAt: typeof r.createdAt === 'string' ? r.createdAt : now,
+    updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : now,
+  };
+}
+
+function coerceScheduleItem(raw: unknown): ScheduleItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const text = typeof r.text === 'string' ? r.text : '';
+  if (!text.trim()) return null;
+  const now = new Date().toISOString();
+  return {
+    id: typeof r.id === 'string' ? r.id : newId('s'),
+    time: typeof r.time === 'string' ? r.time : '',
+    text,
+    done: r.done === true,
+    order: typeof r.order === 'number' ? r.order : 0,
     createdAt: typeof r.createdAt === 'string' ? r.createdAt : now,
     updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : now,
   };
@@ -193,7 +244,11 @@ export function parseBoard(md: string): Board | null {
   const goals: Goal[] = rawGoals
     .map((g) => coerceGoal(g))
     .filter((g): g is Goal => g !== null);
-  return { version: 2, buckets, tasks, goals };
+  const rawSchedule = Array.isArray(d.schedule) ? d.schedule : [];
+  const schedule: ScheduleItem[] = rawSchedule
+    .map((s) => coerceScheduleItem(s))
+    .filter((s): s is ScheduleItem => s !== null);
+  return { version: 2, buckets, tasks, goals, schedule };
 }
 
 /** Render a Board back to board.md markdown (json block is canonical). */
