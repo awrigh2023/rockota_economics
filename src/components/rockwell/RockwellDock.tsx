@@ -152,6 +152,7 @@ export default function RockwellDock() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskBucketId, setNewTaskBucketId] = useState('');
   const [showAddTask, setShowAddTask] = useState(false);
+  const [taskBoardOpen, setTaskBoardOpen] = useState(false);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [taskByChat, setTaskByChat] = useState<Record<string, ActiveTaskRef | null>>(() => {
     try { return JSON.parse(localStorage.getItem('rw_task_by_chat') || '{}'); } catch { return {}; }
@@ -211,10 +212,10 @@ export default function RockwellDock() {
   useEffect(() => {
     const hasFocus = !!(activeId && (taskByChat[activeId] || goalByChat[activeId]));
     const tabWantsBoard = sidebarTab === 'tasks' || sidebarTab === 'goals';
-    if (open && owner && token && (hasFocus || tabWantsBoard)) {
+    if (open && owner && token && (hasFocus || tabWantsBoard || taskBoardOpen)) {
       loadBoard(token).then(setBoard).catch(() => { /* keep existing */ });
     }
-  }, [open, owner, token, fullscreen, sidebarTab, activeId, taskByChat, goalByChat]);
+  }, [open, owner, token, fullscreen, sidebarTab, activeId, taskByChat, goalByChat, taskBoardOpen]);
 
   const check = useCallback(() => {
     setStatus(null);
@@ -698,6 +699,11 @@ export default function RockwellDock() {
         </div>
       ) : (
       <>
+        <button onClick={() => setTaskBoardOpen(true)}
+          className="mb-2 w-full inline-flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium"
+          style={{ background: `${GOLD}14`, color: GOLD }}>
+          <Maximize2Icon size={13} /> Expand tasks
+        </button>
         {/* Quick add — collapsed to a button until you choose to add */}
         {!showAddTask ? (
           <button onClick={() => setShowAddTask(true)}
@@ -841,6 +847,116 @@ export default function RockwellDock() {
       </div>
     </>
   );
+
+  // Expanded task dashboard (fullscreen overlay inside the Rockwell window):
+  // Today (due today + overdue), all open tasks by bucket, and this week's completions.
+  const taskBoardOverlay = taskBoardOpen && board ? (() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const weekStart = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // back to Monday
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString();
+    })();
+    const all = board.tasks;
+    const openAll = all.filter((t) => t.status !== 'done');
+    const dueToday = openAll
+      .filter((t) => t.due && t.due <= today)
+      .sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+    const completedWeek = all
+      .filter((t) => t.status === 'done' && (t.updatedAt || '') >= weekStart)
+      .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    const bucketName = (id: string) => board.buckets.find((x) => x.id === id)?.name || '—';
+
+    const row = (t: Task) => (
+      <li key={t.id} className="group/row flex items-center gap-2 rounded-md px-1 py-1.5 hover:bg-black/[0.03]">
+        <button onClick={() => setTaskStatus(t.id, 'done')} title="Mark complete"
+          className="shrink-0 inline-flex items-center justify-center rounded-full"
+          style={{ width: 18, height: 18, border: `1.5px solid ${t.status === 'doing' ? '#f59e0b' : 'rgba(0,0,0,0.28)'}` }}>
+          <CheckIcon size={11} className="opacity-0 group-hover/row:opacity-100" style={{ color: GOLD }} />
+        </button>
+        <span className="flex-1 min-w-0 truncate text-[13px]" style={{ color: '#1f2a44' }}>{t.title}</span>
+        <span className="text-[10px] shrink-0" style={{ color: 'rgba(0,0,0,0.4)' }}>{bucketName(t.bucketId)}</span>
+        {t.due && <span className="text-[10px] shrink-0" style={{ color: t.due < today ? '#dc2626' : 'rgba(0,0,0,0.4)' }}>{t.due.slice(5)}</span>}
+      </li>
+    );
+
+    const stats: [string, number][] = [
+      ['Due today', dueToday.length],
+      ['Open', openAll.length],
+      ['Done this week', completedWeek.length],
+    ];
+
+    return (
+      <div className="absolute inset-0 z-[70] flex flex-col" style={{ background: NAVY }}>
+        <div className="flex items-center gap-2.5 px-4 py-3" style={{ background: PANEL, borderBottom: `1px solid ${GOLD}22` }}>
+          <button onClick={() => setTaskBoardOpen(false)} title="Back to chat" className="p-1.5 rounded-md hover:bg-black/5">
+            <Minimize2Icon size={16} style={{ color: 'rgba(0,0,0,0.7)' }} />
+          </button>
+          <span className="text-sm font-semibold" style={{ color: '#0f2e2e' }}>Tasks</span>
+          <div className="flex-1" />
+          <button onClick={refreshBoard} title="Refresh" className="p-1.5 rounded-md hover:bg-black/5">
+            <RefreshCwIcon size={15} style={{ color: 'rgba(0,0,0,0.6)' }} />
+          </button>
+          <button onClick={() => setTaskBoardOpen(false)} title="Close" className="p-1.5 rounded-md hover:bg-black/5">
+            <XIcon size={16} style={{ color: 'rgba(0,0,0,0.7)' }} />
+          </button>
+        </div>
+
+        <div className="px-4 pt-3 grid grid-cols-3 gap-2">
+          {stats.map(([label, val]) => (
+            <div key={label} className="rounded-lg px-3 py-2" style={{ background: PANEL, border: `1px solid ${GOLD}22` }}>
+              <div className="text-[20px] font-semibold leading-tight" style={{ color: GOLD }}>{val}</div>
+              <div className="text-[10px] uppercase tracking-wide" style={{ color: 'rgba(0,0,0,0.45)' }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+          <section>
+            <div className="text-[11px] uppercase tracking-wide mb-1.5 font-semibold" style={{ color: GOLD }}>Today</div>
+            {dueToday.length === 0 ? (
+              <p className="text-[12px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Nothing due today.</p>
+            ) : (
+              <ul className="space-y-0.5">{dueToday.map(row)}</ul>
+            )}
+          </section>
+
+          <section>
+            <div className="text-[11px] uppercase tracking-wide mb-1.5 font-semibold" style={{ color: 'rgba(0,0,0,0.5)' }}>All open tasks</div>
+            {openAll.length === 0 ? (
+              <p className="text-[12px]" style={{ color: 'rgba(0,0,0,0.4)' }}>No open tasks.</p>
+            ) : (
+              board.buckets.map((b) => {
+                const items = openAll.filter((t) => t.bucketId === b.id);
+                if (!items.length) return null;
+                return (
+                  <div key={b.id} className="mb-2">
+                    <div className="text-[10px] uppercase tracking-wide mb-0.5 px-1" style={{ color: 'rgba(0,0,0,0.4)' }}>{b.name}</div>
+                    <ul className="space-y-0.5">{items.map(row)}</ul>
+                  </div>
+                );
+              })
+            )}
+          </section>
+
+          {completedWeek.length > 0 && (
+            <section>
+              <div className="text-[11px] uppercase tracking-wide mb-1.5 font-semibold" style={{ color: 'rgba(0,0,0,0.5)' }}>Completed this week</div>
+              <ul className="space-y-0.5">
+                {completedWeek.map((t) => (
+                  <li key={t.id} className="flex items-center gap-2 px-1 py-1">
+                    <CheckIcon size={14} className="shrink-0" style={{ color: GOLD }} />
+                    <span className="flex-1 min-w-0 truncate text-[13px] line-through" style={{ color: 'rgba(0,0,0,0.4)' }}>{t.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      </div>
+    );
+  })() : null;
 
   return (
     <div
@@ -1155,6 +1271,7 @@ export default function RockwellDock() {
       )}
       </div>
       </div>
+      {taskBoardOverlay}
     </div>
   );
 }
