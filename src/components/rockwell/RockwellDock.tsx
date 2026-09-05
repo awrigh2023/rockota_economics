@@ -673,8 +673,13 @@ export default function RockwellDock() {
     </>
   );
 
-  // Console tasks (fullscreen Tasks tab), grouped by bucket, open items only.
+  // Console tasks. The compact Tasks tab shows only what's due today (+ overdue);
+  // the full board lives in the expanded view.
   const openTasks = board ? board.tasks.filter((t) => t.status !== 'done') : [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayTasks = openTasks
+    .filter((t) => t.due && t.due <= todayStr)
+    .sort((a, b) => (a.due || '').localeCompare(b.due || ''));
   const taskListInner = (
     <>
       {!board ? (
@@ -760,35 +765,29 @@ export default function RockwellDock() {
             </div>
           </div>
         )}
-        {openTasks.length === 0 ? (
-          <p className="text-[12px] text-center mt-4" style={{ color: 'rgba(0,0,0,0.45)' }}>No open tasks yet.</p>
+        <div className="text-[10px] uppercase tracking-wide mb-1 px-1 font-semibold" style={{ color: GOLD }}>Today</div>
+        {todayTasks.length === 0 ? (
+          <p className="text-[12px] text-center mt-3 leading-relaxed" style={{ color: 'rgba(0,0,0,0.45)' }}>
+            Nothing due today.<br />Hit <span style={{ color: GOLD }}>Expand tasks</span> to see everything.
+          </p>
         ) : (
-          board.buckets.map((b) => {
-          const items = openTasks.filter((t) => t.bucketId === b.id);
-          if (!items.length) return null;
-          return (
-            <div key={b.id} className="mb-3">
-              <div className="text-[10px] uppercase tracking-wide mb-1 px-1" style={{ color: 'rgba(0,0,0,0.4)' }}>{b.name}</div>
-              <ul className="space-y-1">
-                {items.map((t) => (
-                  <li key={t.id} className="group/task flex items-center gap-1 rounded-md pr-1"
-                    style={{ background: activeTask?.id === t.id ? `${GOLD}1f` : 'transparent', border: `1px solid ${activeTask?.id === t.id ? `${GOLD}44` : 'transparent'}` }}>
-                    <button onClick={() => setTaskStatus(t.id, 'done')} title="Mark complete"
-                      className="shrink-0 ml-1.5 inline-flex items-center justify-center rounded-full transition-colors"
-                      style={{ width: 18, height: 18, border: `1.5px solid ${t.status === 'doing' ? '#f59e0b' : 'rgba(0,0,0,0.28)'}` }}>
-                      <CheckIcon size={11} className="opacity-0 group-hover/task:opacity-100" style={{ color: GOLD }} />
-                    </button>
-                    <button onClick={() => setDetailTask(t)} title={t.title}
-                      className="flex-1 min-w-0 text-left px-1 py-1.5 flex items-center gap-2">
-                      <span className="flex-1 min-w-0 truncate text-[13px]" style={{ color: '#1f2a44' }}>{t.title}</span>
-                      {t.due && <span className="text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>{t.due.slice(5)}</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })
+          <ul className="space-y-1">
+            {todayTasks.map((t) => (
+              <li key={t.id} className="group/task flex items-center gap-1 rounded-md pr-1"
+                style={{ background: activeTask?.id === t.id ? `${GOLD}1f` : 'transparent', border: `1px solid ${activeTask?.id === t.id ? `${GOLD}44` : 'transparent'}` }}>
+                <button onClick={() => setTaskStatus(t.id, 'done')} title="Mark complete"
+                  className="shrink-0 ml-1.5 inline-flex items-center justify-center rounded-full transition-colors"
+                  style={{ width: 18, height: 18, border: `1.5px solid ${t.status === 'doing' ? '#f59e0b' : 'rgba(0,0,0,0.28)'}` }}>
+                  <CheckIcon size={11} className="opacity-0 group-hover/task:opacity-100" style={{ color: GOLD }} />
+                </button>
+                <button onClick={() => setDetailTask(t)} title={t.title}
+                  className="flex-1 min-w-0 text-left px-1 py-1.5 flex items-center gap-2">
+                  <span className="flex-1 min-w-0 truncate text-[13px]" style={{ color: '#1f2a44' }}>{t.title}</span>
+                  {t.due && <span className="text-[10px] shrink-0" style={{ color: t.due < todayStr ? '#dc2626' : 'rgba(0,0,0,0.4)' }}>{t.due.slice(5)}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </>
       )}
