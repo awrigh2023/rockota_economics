@@ -19,7 +19,7 @@ import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   SendIcon, XIcon, Maximize2Icon, Minimize2Icon, MaximizeIcon, MinimizeIcon, SquarePenIcon, StopCircleIcon,
-  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, ArchiveIcon, PencilIcon, CheckIcon, PlusIcon,
+  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, ArchiveIcon, PencilIcon, CheckIcon, PlusIcon, SparklesIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -27,7 +27,7 @@ import {
   getPreferredModel, setPreferredModel, prettyModel,
   getSource, setSource, ModelSource, ModelStatus, LocalMsg,
 } from '../../lib/localModel';
-import { isOwner, loadBoard, saveBoard, newId, HORIZON_LABEL, HORIZONS, STATUS_LABEL, PRIORITY_LABEL, Board, Task, Goal } from '../../lib/console';
+import { isOwner, loadBoard, saveBoard, newId, newScheduleItem, scheduleMinutes, HORIZON_LABEL, HORIZONS, STATUS_LABEL, PRIORITY_LABEL, Board, Task, Goal } from '../../lib/console';
 import { vaultSearch, API_URL } from '../../lib/vault-api';
 import { loadQuotes, VaultQuote } from '../../lib/quotes';
 import {
@@ -169,6 +169,9 @@ export default function RockwellDock() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskBucketId, setNewTaskBucketId] = useState('');
   const [showAddTask, setShowAddTask] = useState(false);
+  const [newSchedTime, setNewSchedTime] = useState('');
+  const [newSchedText, setNewSchedText] = useState('');
+  const [showAddSched, setShowAddSched] = useState(false);
   const [taskBoardOpen, setTaskBoardOpen] = useState(false);
   const [expandTask, setExpandTask] = useState<Task | null>(null);
   const [retryText, setRetryText] = useState<Record<string, string>>({});
@@ -411,6 +414,54 @@ export default function RockwellDock() {
 
   function refreshBoard() {
     if (token) loadBoard(token).then(setBoard).catch(() => { /* keep existing */ });
+  }
+
+  // ── Schedule (today's freeform plan) ────────────────────────────────────────
+  async function addScheduleItem() {
+    const text = newSchedText.trim();
+    if (!text || !token || !board) return;
+    const updated: Board = { ...board, schedule: [...(board.schedule ?? []), newScheduleItem(newSchedTime, text)] };
+    setBoard(updated);
+    setNewSchedTime(''); setNewSchedText('');
+    try { await saveBoard(updated, token); } catch { /* keep local; retry later */ }
+  }
+
+  async function toggleSchedDone(id: string) {
+    if (!token || !board) return;
+    const updated: Board = {
+      ...board,
+      schedule: (board.schedule ?? []).map((s) => (s.id === id ? { ...s, done: !s.done, updatedAt: new Date().toISOString() } : s)),
+    };
+    setBoard(updated);
+    try { await saveBoard(updated, token); } catch { /* keep local */ }
+  }
+
+  async function deleteSchedItem(id: string) {
+    if (!token || !board) return;
+    const updated: Board = { ...board, schedule: (board.schedule ?? []).filter((s) => s.id !== id) };
+    setBoard(updated);
+    try { await saveBoard(updated, token); } catch { /* keep local */ }
+  }
+
+  // Compose today's schedule + tasks + goals and ask Rockwell for a read on the day.
+  function readMyDay() {
+    if (!board) return;
+    const items = [...(board.schedule ?? [])].sort(
+      (a, z) => scheduleMinutes(a.time) - scheduleMinutes(z.time) || a.createdAt.localeCompare(z.createdAt));
+    const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    const sched = items.length
+      ? items.map((s) => `${s.time || '—'} · ${s.text}${s.done ? ' (done)' : ''}`).join('\n')
+      : '(nothing scheduled yet)';
+    const openT = board.tasks.filter((t) => t.status !== 'done')
+      .slice(0, 20).map((t) => `- ${t.title}${t.due ? ` (due ${t.due})` : ''}`).join('\n') || '(none)';
+    const goals = (board.goals ?? []).map((g) => `- ${HORIZON_LABEL[g.horizon]}: ${g.title} (${g.progress}%)`).join('\n') || '(none)';
+    const prompt =
+      `Be my personal assistant for today (${today}). Here is my day:\n\n` +
+      `SCHEDULE:\n${sched}\n\nOPEN TASKS:\n${openT}\n\nGOALS:\n${goals}\n\n` +
+      `Give me a short, warm, practical read: is the day realistic, what to prioritize, any time ` +
+      `conflicts or open gaps I could use, and 1–2 concrete suggestions to get the important things ` +
+      `done. Talk to me directly and keep it tight.`;
+    send(prompt);
   }
 
   async function patchTask(taskId: string, patch: Partial<Task>) {
@@ -785,6 +836,57 @@ export default function RockwellDock() {
         </div>
       ) : (
       <>
+        {/* Today's schedule — freeform, time-based plan (not tasks) */}
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1 px-1">
+            <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: GOLD }}>Schedule · Today</span>
+            <button onClick={readMyDay} title="Rockwell's read on your day"
+              className="inline-flex items-center gap-1 text-[10px] font-medium" style={{ color: GOLD }}>
+              <SparklesIcon size={12} /> Read my day
+            </button>
+          </div>
+          {(board.schedule ?? []).length === 0 ? (
+            <p className="text-[11px] px-1 mb-1" style={{ color: 'rgba(0,0,0,0.4)' }}>Add what you’re doing today — e.g. 1:00 PM · Museum.</p>
+          ) : (
+            <ul className="space-y-0.5 mb-1">
+              {[...(board.schedule ?? [])]
+                .sort((a, z) => scheduleMinutes(a.time) - scheduleMinutes(z.time) || a.createdAt.localeCompare(z.createdAt))
+                .map((s) => (
+                  <li key={s.id} className="group/sch flex items-center gap-1.5 rounded-md px-1 py-1">
+                    <button onClick={() => toggleSchedDone(s.id)} title="Toggle done"
+                      className="shrink-0 inline-flex items-center justify-center rounded-full"
+                      style={{ width: 16, height: 16, border: `1.5px solid ${s.done ? GOLD : 'rgba(0,0,0,0.25)'}`, background: s.done ? GOLD : 'transparent' }}>
+                      {s.done && <CheckIcon size={10} style={{ color: '#fff' }} />}
+                    </button>
+                    <span className="shrink-0 text-[10px] font-medium w-14" style={{ color: '#0f2e2e' }}>{s.time || '—'}</span>
+                    <span className="flex-1 min-w-0 truncate text-[12px]"
+                      style={{ color: s.done ? 'rgba(0,0,0,0.4)' : '#1f2a44', textDecoration: s.done ? 'line-through' : 'none' }}>{s.text}</span>
+                    <button onClick={() => deleteSchedItem(s.id)} title="Remove"
+                      className="shrink-0 opacity-0 group-hover/sch:opacity-100" style={{ color: 'rgba(0,0,0,0.35)' }}><XIcon size={12} /></button>
+                  </li>
+                ))}
+            </ul>
+          )}
+          {showAddSched ? (
+            <div className="flex items-center gap-1">
+              <input value={newSchedTime} onChange={(e) => setNewSchedTime(e.target.value)} placeholder="1:00 PM"
+                className="w-16 rounded-md px-2 py-1 text-[11px] focus:outline-none" style={{ background: '#fff', border: `1px solid ${GOLD}40`, color: '#1f2a44' }} />
+              <input value={newSchedText} autoFocus onChange={(e) => setNewSchedText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addScheduleItem(); if (e.key === 'Escape') { setNewSchedText(''); setShowAddSched(false); } }}
+                placeholder="What’s happening…" className="flex-1 min-w-0 rounded-md px-2 py-1 text-[12px] focus:outline-none" style={{ background: '#fff', border: `1px solid ${GOLD}40`, color: '#1f2a44' }} />
+              <button onClick={addScheduleItem} disabled={!newSchedText.trim()} title="Add"
+                className="shrink-0 inline-flex items-center justify-center rounded-md disabled:opacity-40" style={{ width: 28, height: 28, background: GOLD, color: '#fff' }}><PlusIcon size={14} /></button>
+            </div>
+          ) : (
+            <button onClick={() => setShowAddSched(true)}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium"
+              style={{ border: `1px dashed ${GOLD}59`, color: GOLD }}>
+              <PlusIcon size={13} /> Add to schedule
+            </button>
+          )}
+          <div className="mt-3 border-t" style={{ borderColor: 'rgba(0,0,0,0.08)' }} />
+        </div>
+
         <button onClick={() => setTaskBoardOpen(true)}
           className="mb-2 w-full inline-flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium"
           style={{ background: `${GOLD}14`, color: GOLD }}>
