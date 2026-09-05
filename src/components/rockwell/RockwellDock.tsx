@@ -153,6 +153,7 @@ export default function RockwellDock() {
   const [newTaskBucketId, setNewTaskBucketId] = useState('');
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskBoardOpen, setTaskBoardOpen] = useState(false);
+  const [expandTask, setExpandTask] = useState<Task | null>(null);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [taskByChat, setTaskByChat] = useState<Record<string, ActiveTaskRef | null>>(() => {
     try { return JSON.parse(localStorage.getItem('rw_task_by_chat') || '{}'); } catch { return {}; }
@@ -372,6 +373,17 @@ export default function RockwellDock() {
 
   function refreshBoard() {
     if (token) loadBoard(token).then(setBoard).catch(() => { /* keep existing */ });
+  }
+
+  async function patchTask(taskId: string, patch: Partial<Task>) {
+    if (!token || !board) return;
+    const updated: Board = {
+      ...board,
+      tasks: board.tasks.map((t) => (t.id === taskId ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t)),
+    };
+    setBoard(updated);
+    setExpandTask((prev) => (prev && prev.id === taskId ? { ...prev, ...patch } : prev));
+    try { await saveBoard(updated, token); } catch { /* keep local; retry later */ }
   }
 
   async function addTask() {
@@ -876,14 +888,14 @@ export default function RockwellDock() {
           style={{ width: 17, height: 17, border: `1.5px solid ${t.status === 'doing' ? '#f59e0b' : 'rgba(0,0,0,0.28)'}` }}>
           <CheckIcon size={11} className="opacity-0 group-hover/row:opacity-100" style={{ color: GOLD }} />
         </button>
-        <div className="min-w-0 flex-1">
+        <button onClick={() => setExpandTask(t)} className="min-w-0 flex-1 text-left" title="Edit task">
           <p className="text-[13px] leading-snug" style={{ color: '#1f2a44' }}>{t.title}</p>
           <div className="flex flex-wrap items-center gap-x-2 mt-0.5">
             {t.due && <span className="text-[10px]" style={{ color: t.due < today ? '#dc2626' : 'rgba(0,0,0,0.45)' }}>due {t.due.slice(5)}</span>}
             {t.priority !== 'none' && <span className="text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>{PRIORITY_LABEL[t.priority]}</span>}
             {showBucket && <span className="text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>{bucketName(t.bucketId)}</span>}
           </div>
-        </div>
+        </button>
       </div>
     );
     const doneCard = (t: Task) => (
@@ -953,6 +965,34 @@ export default function RockwellDock() {
                 completedWeek.map(doneCard))}
           </div>
         </div>
+
+        {expandTask && (
+          <div className="absolute inset-0 z-[80] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={() => setExpandTask(null)}>
+            <div className="w-full max-w-sm rounded-xl p-4" style={{ background: NAVY, border: `1px solid ${GOLD}44` }} onClick={(e) => e.stopPropagation()}>
+              <div className="text-sm font-semibold" style={{ color: '#0f2e2e' }}>{expandTask.title}</div>
+              <div className="text-[11px] mb-3" style={{ color: 'rgba(0,0,0,0.5)' }}>{bucketName(expandTask.bucketId)} · {STATUS_LABEL[expandTask.status]}</div>
+              <label className="block text-[11px] mb-2" style={{ color: 'rgba(0,0,0,0.6)' }}>Due date
+                <input type="date" value={expandTask.due ?? ''} onChange={(e) => patchTask(expandTask.id, { due: e.target.value || null })}
+                  className="mt-1 w-full rounded-md px-2 py-1.5 text-[13px] focus:outline-none" style={{ background: NAVY, border: `1px solid ${GOLD}40`, color: '#1f2a44' }} />
+              </label>
+              <label className="block text-[11px] mb-3" style={{ color: 'rgba(0,0,0,0.6)' }}>Priority
+                <select value={expandTask.priority} onChange={(e) => patchTask(expandTask.id, { priority: e.target.value as Task['priority'] })}
+                  className="mt-1 w-full rounded-md px-2 py-1.5 text-[12px] focus:outline-none" style={{ background: NAVY, border: `1px solid ${GOLD}40`, color: '#1f2a44' }}>
+                  {Object.keys(PRIORITY_LABEL).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p as Task['priority']]}</option>)}
+                </select>
+              </label>
+              {expandTask.notes?.trim() && (
+                <div className="rw-md text-[12px] mb-3" style={{ color: '#1f2a44' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{expandTask.notes}</ReactMarkdown></div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => { setTaskStatus(expandTask.id, 'done'); setExpandTask(null); }}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[12px] font-medium"
+                  style={{ background: 'transparent', color: GOLD, border: `1px solid ${GOLD}59` }}><CheckIcon size={14} /> Complete</button>
+                <button onClick={() => setExpandTask(null)} className="flex-1 rounded-md py-1.5 text-[12px] font-medium" style={{ background: GOLD, color: NAVY }}>Done</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   })() : null;
