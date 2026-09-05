@@ -19,7 +19,7 @@ import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   SendIcon, XIcon, Maximize2Icon, Minimize2Icon, MaximizeIcon, MinimizeIcon, SquarePenIcon, StopCircleIcon,
-  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, ArchiveIcon, PencilIcon, CheckIcon,
+  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, ArchiveIcon, PencilIcon, CheckIcon, PlusIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -682,34 +682,42 @@ export default function RockwellDock() {
             style={{ background: GOLD, color: NAVY }}>
             Work on this with Rockwell
           </button>
+          <button
+            onClick={() => { if (!detailTask) return; setTaskStatus(detailTask.id, 'done'); setDetailTask(null); }}
+            className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-medium"
+            style={{ background: 'transparent', color: GOLD, border: `1px solid ${GOLD}59` }}>
+            <CheckIcon size={15} /> Mark complete
+          </button>
         </div>
       ) : (
       <>
         {/* Quick add */}
-        <div className="mb-3 flex flex-col gap-1.5">
-          <input
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addTask(); }}
-            placeholder="New task…"
-            className="rounded-md px-2 py-1.5 text-[13px]"
-            style={{ background: NAVY, border: `1px solid ${GOLD}33`, color: '#1f2a44' }}
-          />
-          <div className="flex gap-1.5">
-            <select
-              value={newTaskBucketId || board.buckets[0]?.id || ''}
-              onChange={(e) => setNewTaskBucketId(e.target.value)}
-              className="flex-1 rounded-md px-2 py-1 text-[11px] focus:outline-none"
-              style={{ background: NAVY, color: '#1f2a44', border: `1px solid ${GOLD}33` }}
-            >
-              {board.buckets.map((b) => (
-                <option key={b.id} value={b.id} style={{ background: NAVY }}>{b.name}</option>
-              ))}
-            </select>
-            <button onClick={addTask} disabled={!newTaskTitle.trim()}
-              className="px-3 py-1 rounded-md text-[11px] font-medium disabled:opacity-40"
-              style={{ background: GOLD, color: NAVY }}>Add</button>
+        <div className="mb-3">
+          <div className="flex items-center gap-1.5">
+            <input
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addTask(); }}
+              placeholder="Add a task…"
+              className="flex-1 rounded-lg px-3 py-2 text-[13px] focus:outline-none"
+              style={{ background: '#ffffff', border: `1px solid ${GOLD}40`, color: '#1f2a44' }}
+            />
+            <button onClick={addTask} disabled={!newTaskTitle.trim()} title="Add task"
+              className="shrink-0 inline-flex items-center justify-center rounded-lg disabled:opacity-40"
+              style={{ width: 34, height: 34, background: GOLD, color: '#ffffff' }}>
+              <PlusIcon size={17} />
+            </button>
           </div>
+          <select
+            value={newTaskBucketId || board.buckets[0]?.id || ''}
+            onChange={(e) => setNewTaskBucketId(e.target.value)}
+            className="mt-1.5 w-full rounded-md px-2 py-1 text-[11px] focus:outline-none"
+            style={{ background: '#ffffff', color: 'rgba(0,0,0,0.55)', border: `1px solid ${GOLD}26` }}
+          >
+            {board.buckets.map((b) => (
+              <option key={b.id} value={b.id} style={{ background: '#ffffff', color: '#1f2a44' }}>{b.name}</option>
+            ))}
+          </select>
         </div>
         {openTasks.length === 0 ? (
           <p className="text-[12px] text-center mt-4" style={{ color: 'rgba(0,0,0,0.45)' }}>No open tasks yet.</p>
@@ -722,11 +730,15 @@ export default function RockwellDock() {
               <div className="text-[10px] uppercase tracking-wide mb-1 px-1" style={{ color: 'rgba(0,0,0,0.4)' }}>{b.name}</div>
               <ul className="space-y-1">
                 {items.map((t) => (
-                  <li key={t.id}>
+                  <li key={t.id} className="group/task flex items-center gap-1 rounded-md pr-1"
+                    style={{ background: activeTask?.id === t.id ? `${GOLD}1f` : 'transparent', border: `1px solid ${activeTask?.id === t.id ? `${GOLD}44` : 'transparent'}` }}>
+                    <button onClick={() => setTaskStatus(t.id, 'done')} title="Mark complete"
+                      className="shrink-0 ml-1.5 inline-flex items-center justify-center rounded-full transition-colors"
+                      style={{ width: 18, height: 18, border: `1.5px solid ${t.status === 'doing' ? '#f59e0b' : 'rgba(0,0,0,0.28)'}` }}>
+                      <CheckIcon size={11} className="opacity-0 group-hover/task:opacity-100" style={{ color: GOLD }} />
+                    </button>
                     <button onClick={() => setDetailTask(t)} title={t.title}
-                      className="w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2"
-                      style={{ background: activeTask?.id === t.id ? `${GOLD}1f` : 'transparent', border: `1px solid ${activeTask?.id === t.id ? `${GOLD}44` : 'transparent'}` }}>
-                      <span style={{ width: 6, height: 6, borderRadius: 99, flexShrink: 0, background: t.status === 'doing' ? '#f59e0b' : 'rgba(0,0,0,0.3)' }} />
+                      className="flex-1 min-w-0 text-left px-1 py-1.5 flex items-center gap-2">
                       <span className="flex-1 min-w-0 truncate text-[13px]" style={{ color: '#1f2a44' }}>{t.title}</span>
                       {t.due && <span className="text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>{t.due.slice(5)}</span>}
                     </button>
