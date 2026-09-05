@@ -7,149 +7,22 @@ import {
   DatabaseIcon,
   TableIcon,
   BarChart3Icon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   SearchIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ViewHost from '../components/ViewHost';
 import {
   getUtil,
-  listSeries,
-  queryObservations,
-  countObservations,
   refreshUtil,
   getRefreshStatus,
-  exportObservations,
   listTables,
   getTable,
   UtilManifest,
-  Series,
-  Observation,
   DataTableMeta,
   DataTable,
 } from '../lib/api';
 import * as XLSX from 'xlsx';
 
-const PAGE_SIZE = 200;
-
-// ---------------------------------------------------------------------------
-// SeriesTable — fetches + paginates a single series
-// ---------------------------------------------------------------------------
-interface SeriesTableProps {
-  token: string;
-  series: Series;
-  dateFrom: string;
-  dateTo: string;
-}
-
-function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
-  const [rows, setRows] = useState<Observation[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  const baseFilters = useMemo(
-    () => ({ seriesIds: [series.id], dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
-    [series.id, dateFrom, dateTo],
-  );
-
-  useEffect(() => {
-    setPage(0);
-    countObservations(token, baseFilters).then(setTotal).catch(() => setTotal(0));
-  }, [token, baseFilters]);
-
-  useEffect(() => {
-    setLoading(true);
-    queryObservations(token, { ...baseFilters, limit: PAGE_SIZE, offset: page * PAGE_SIZE })
-      .then((r) => { setRows(r); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [token, baseFilters, page]);
-
-  const hasType = rows.some((r) => !!r.obs_type);
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
-        <span className="text-xs text-gray-400">
-          {total.toLocaleString()} row{total === 1 ? '' : 's'}
-          {series.unit && <> · {series.unit}</>}
-        </span>
-        <div className="flex items-center gap-3">
-          {!!series.metadata?.source_url && (
-            <a href={String(series.metadata.source_url)} target="_blank" rel="noreferrer"
-              className="text-xs text-[#243975] hover:underline">
-              View source ↗
-            </a>
-          )}
-          {total > PAGE_SIZE && (
-            <span className="text-xs text-gray-400">page {page + 1} of {totalPages}</span>
-          )}
-        </div>
-      </div>
-
-      <div className="overflow-x-auto max-h-[60vh]">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 sticky top-0">
-            <tr className="text-left text-gray-500">
-              <th className="px-4 py-2 font-medium">Period</th>
-              <th className="px-4 py-2 font-medium">Date</th>
-              <th className="px-4 py-2 font-medium">Geography</th>
-              <th className="px-4 py-2 font-medium text-right">Value</th>
-              {hasType && <th className="px-4 py-2 font-medium">Type</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading ? (
-              <tr>
-                <td colSpan={hasType ? 5 : 4} className="px-4 py-10 text-center text-gray-400 text-xs">Loading…</td>
-              </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={hasType ? 5 : 4} className="px-4 py-10 text-center text-gray-400 text-xs">No data for the current filters.</td>
-              </tr>
-            ) : rows.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2 text-gray-600">{r.period_label}</td>
-                <td className="px-4 py-2 text-gray-600">{r.obs_date}</td>
-                <td className="px-4 py-2 text-gray-500">{r.geography}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-gray-900">
-                  {r.value === null ? '—' : r.value.toLocaleString()}
-                </td>
-                {hasType && (
-                  <td className="px-4 py-2">
-                    {r.obs_type && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        r.obs_type === 'Forecast' ? 'bg-[#d7c770]/25 text-[#8a7b1f]' : 'bg-[#008080]/10 text-[#008080]'
-                      }`}>
-                        {r.obs_type}
-                      </span>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {total > PAGE_SIZE && (
-        <div className="flex items-center justify-end gap-2 px-4 py-2 border-t border-gray-100">
-          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
-            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
-            <ChevronLeftIcon size={16} />
-          </button>
-          <span className="text-xs text-gray-500">{page + 1} / {totalPages}</span>
-          <button onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))} disabled={page + 1 >= totalPages}
-            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
-            <ChevronRightIcon size={16} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -302,24 +175,14 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const { token } = useAuth();
 
   const [manifest, setManifest] = useState<UtilManifest | null>(null);
-  const [series, setSeries] = useState<Series[]>([]);
   const [tables, setTables] = useState<DataTableMeta[]>([]);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   // Single consolidated data tab (grouped spreadsheets) or a view id
   const [activeTab, setActiveTab] = useState<string>('tables');
   const [activeTableCode, setActiveTableCode] = useState<string | null>(null);
-  // Dataset picker (e.g. "Colorado Counties" / "States" / "National")
-  const [activeDataset, setActiveDataset] = useState<string | null>(null);
-  // Series sub-tab within the active dataset
-  const [activeSeries, setActiveSeries] = useState<number | null>(null);
-  // Table search within the active dataset's sidebar
-  const [search, setSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -347,46 +210,18 @@ const UtilDetailInner = ({ id }: { id: string }) => {
     [tables, activeTableCode],
   );
 
-  const datasets = useMemo(
-    () => [...new Set(series.map((s) => s.dataset).filter(Boolean))] as string[],
-    [series],
-  );
-
-  const visibleSeries = useMemo(
-    () => (datasets.length ? series.filter((s) => s.dataset === activeDataset) : series),
-    [series, datasets, activeDataset],
-  );
-
-  const currentSeries = useMemo(
-    () => visibleSeries.find((s) => s.id === activeSeries) ?? null,
-    [visibleSeries, activeSeries],
-  );
-
-  const filteredSeries = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return visibleSeries;
-    return visibleSeries.filter((s) => (s.title ?? s.code ?? '').toLowerCase().includes(q));
-  }, [visibleSeries, search]);
-
   const loadMeta = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const [m, s, t] = await Promise.all([
+      const [m, t] = await Promise.all([
         getUtil(token, id),
-        listSeries(token, id),
         listTables(token, id).catch(() => [] as DataTableMeta[]),
       ]);
       setManifest(m);
-      setSeries(s);
       setTables(t);
       setActiveTableCode((prev) => prev ?? t[0]?.code ?? null);
-      const ds = [...new Set(s.map((x) => x.dataset).filter(Boolean))] as string[];
-      const initial = ds[0] ?? null;
-      setActiveDataset((prev) => prev ?? initial);
-      const firstInDataset = (initial ? s.filter((x) => x.dataset === initial) : s)[0];
-      setActiveSeries((prev) => prev ?? firstInDataset?.id ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load util');
     } finally {
@@ -395,13 +230,6 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   }, [token, id]);
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
-
-  function selectDataset(d: string) {
-    setActiveDataset(d);
-    setSearch('');
-    const first = series.find((s) => s.dataset === d);
-    setActiveSeries(first?.id ?? null);
-  }
 
   async function handleRefresh() {
     if (!token) return;
@@ -415,7 +243,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
         await new Promise((r) => setTimeout(r, 3000));
         const job = await getRefreshStatus(token, id);
         if (job.status === 'done') {
-          setNotice(`Fetched ${job.series_count} series and wrote ${job.observations_written} observations.`);
+          setNotice('Data refreshed.');
           await loadMeta();
           return;
         }
@@ -426,22 +254,6 @@ const UtilDetailInner = ({ id }: { id: string }) => {
       setError(e instanceof Error ? e.message : 'Refresh failed');
     } finally {
       setRefreshing(false);
-    }
-  }
-
-  async function handleExport() {
-    if (!token || !activeSeries) return;
-    setExporting(true);
-    try {
-      await exportObservations(token, {
-        seriesIds: [activeSeries],
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Export failed');
-    } finally {
-      setExporting(false);
     }
   }
 
