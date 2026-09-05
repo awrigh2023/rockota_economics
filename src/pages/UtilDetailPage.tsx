@@ -29,6 +29,7 @@ import {
   DataTableMeta,
   DataTable,
 } from '../lib/api';
+import * as XLSX from 'xlsx';
 
 const PAGE_SIZE = 200;
 
@@ -157,18 +158,110 @@ function SeriesTable({ token, series, dateFrom, dateTo }: SeriesTableProps) {
 function DataTableView({ token, utilId, meta }: { token: string; utilId: string; meta: DataTableMeta }) {
   const [table, setTable] = useState<DataTable | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [yearFrom, setYearFrom] = useState('');
+  const [yearTo, setYearTo] = useState('');
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [exporting, setExporting] = useState(false);
+
   useEffect(() => {
     if (!token) return;
     getTable(token, utilId, meta.code)
       .then(setTable)
       .catch((e) => setErr(e instanceof Error ? e.message : 'Failed to load table'));
   }, [token, utilId, meta.code]);
+
   const cols = table?.columns ?? [];
+  const hasYear = cols.some((c) => c.key === 'year');
+
+  const filtered = useMemo(() => {
+    let rows = table?.rows ?? [];
+    const q = query.trim().toLowerCase();
+    if (q) rows = rows.filter((r) => cols.some((c) => String(r[c.key] ?? '').toLowerCase().includes(q)));
+    if (hasYear && (yearFrom || yearTo)) {
+      const yf = yearFrom ? Number(yearFrom) : null;
+      const yt = yearTo ? Number(yearTo) : null;
+      rows = rows.filter((r) => {
+        const y = Number(r['year']);
+        if (Number.isNaN(y)) return false;
+        if (yf != null && y < yf) return false;
+        if (yt != null && y > yt) return false;
+        return true;
+      });
+    }
+    if (sortKey) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      rows = [...rows].sort((a, b) => {
+        const av = a[sortKey], bv = b[sortKey];
+        const an = typeof av === 'number' ? av : Number(av);
+        const bn = typeof bv === 'number' ? bv : Number(bv);
+        if (!Number.isNaN(an) && !Number.isNaN(bn) && av !== '' && bv !== '') return (an - bn) * dir;
+        return String(av ?? '').localeCompare(String(bv ?? '')) * dir;
+      });
+    }
+    return rows;
+  }, [table, query, yearFrom, yearTo, sortKey, sortDir, cols, hasYear]);
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+
+  function exportXlsx() {
+    if (!table) return;
+    setExporting(true);
+    try {
+      const keys = cols.map((c) => c.key);
+      const header = cols.map((c) => c.label ?? c.key);
+      const aoa = [header, ...filtered.map((r) => keys.map((k) => (r[k] == null ? '' : r[k])))];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, (meta.code || 'table').slice(0, 31));
+      XLSX.writeFile(wb, `${utilId}_${meta.code}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const total = table?.rows.length ?? 0;
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-6">
-      <div className="px-4 py-3 border-b border-gray-100">
-        <h3 className="font-semibold text-[#243975]">{meta.title || meta.code}</h3>
-        <p className="text-xs text-gray-500">{meta.n_rows} rows · {meta.n_columns} columns</p>
+      <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-[#243975]">{meta.title || meta.code}</h3>
+          <p className="text-xs text-gray-500">
+            {filtered.length === total ? `${total} rows` : `${filtered.length} of ${total} rows`} · {meta.n_columns} columns
+          </p>
+        </div>
+        {table && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Filter rows…"
+                className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md w-44 focus:outline-none focus:ring-1 focus:ring-[#008080]"
+              />
+            </div>
+            {hasYear && (
+              <div className="flex items-center gap-1 text-sm text-gray-500">
+                <input value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} placeholder="From" inputMode="numeric"
+                  className="w-16 px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#008080]" />
+                <span>–</span>
+                <input value={yearTo} onChange={(e) => setYearTo(e.target.value)} placeholder="To" inputMode="numeric"
+                  className="w-16 px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#008080]" />
+              </div>
+            )}
+            <button onClick={exportXlsx} disabled={exporting || filtered.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#008080] px-3 py-1.5 text-sm font-medium text-[#008080] hover:bg-[#008080]/10 disabled:opacity-50">
+              <DownloadIcon size={14} />
+              <span>{exporting ? 'Exporting…' : 'Export to Excel'}</span>
+            </button>
+          </div>
+        )}
       </div>
       {err ? (
         <p className="p-4 text-sm text-red-600">{err}</p>
@@ -180,12 +273,17 @@ function DataTableView({ token, utilId, meta }: { token: string; utilId: string;
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 {cols.map((c) => (
-                  <th key={c.key} className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">{c.label ?? c.key}</th>
+                  <th key={c.key}
+                    onClick={() => toggleSort(c.key)}
+                    className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap cursor-pointer select-none hover:text-[#243975]">
+                    {c.label ?? c.key}
+                    {sortKey === c.key && <span className="ml-1 text-[#008080]">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {table.rows.map((row, i) => (
+              {filtered.map((row, i) => (
                 <tr key={i} className="border-t border-gray-100">
                   {cols.map((c) => (
                     <td key={c.key} className="px-3 py-1.5 whitespace-nowrap text-gray-800">{row[c.key] == null ? '' : String(row[c.key])}</td>
@@ -260,6 +358,8 @@ const UtilDetailInner = ({ id }: { id: string }) => {
       setManifest(m);
       setSeries(s);
       setTables(t);
+      // If a util has no series but has wide tables, land on the Tables tab.
+      if (s.length === 0 && t.length > 0) setActiveTab('tables');
       const ds = [...new Set(s.map((x) => x.dataset).filter(Boolean))] as string[];
       const initial = ds[0] ?? null;
       setActiveDataset((prev) => prev ?? initial);
@@ -370,7 +470,9 @@ const UtilDetailInner = ({ id }: { id: string }) => {
 
         {/* Top-level tabs */}
         <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
-          <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<TableIcon size={16} />} label="Data" />
+          {(series.length > 0 || tables.length === 0) && (
+            <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<TableIcon size={16} />} label="Data" />
+          )}
           {tables.length > 0 && (
             <TabButton active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} icon={<TableIcon size={16} />} label="Tables" />
           )}
