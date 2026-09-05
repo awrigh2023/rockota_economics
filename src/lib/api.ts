@@ -64,6 +64,8 @@ export interface UtilManifest {
   views?: UtilView[];
   reports?: UtilReport[];
   params?: Record<string, unknown>;
+  /** Named sections for the wide-table (Data) view: group name -> table codes. */
+  table_groups?: { name: string; codes: string[] }[];
 }
 
 export interface Series {

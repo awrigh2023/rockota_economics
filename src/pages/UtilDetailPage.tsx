@@ -307,8 +307,9 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Top-level tabs: 'data' or a view id
-  const [activeTab, setActiveTab] = useState<string>('data');
+  // Single consolidated data tab (grouped spreadsheets) or a view id
+  const [activeTab, setActiveTab] = useState<string>('tables');
+  const [activeTableCode, setActiveTableCode] = useState<string | null>(null);
   // Dataset picker (e.g. "Colorado Counties" / "States" / "National")
   const [activeDataset, setActiveDataset] = useState<string | null>(null);
   // Series sub-tab within the active dataset
@@ -323,6 +324,28 @@ const UtilDetailInner = ({ id }: { id: string }) => {
   const [notice, setNotice] = useState<string | null>(null);
 
   const views = useMemo(() => manifest?.views ?? [], [manifest]);
+
+  // Tables grouped into named sections (from manifest.table_groups). Any table
+  // not named in a group falls into a trailing catch-all section.
+  const tableGroups = useMemo(() => {
+    const defs = manifest?.table_groups ?? [];
+    const byCode = new Map(tables.map((t) => [t.code, t]));
+    const used = new Set<string>();
+    const out: { name: string; tables: DataTableMeta[] }[] = [];
+    for (const g of defs) {
+      const ts = (g.codes ?? []).map((c) => byCode.get(c)).filter(Boolean) as DataTableMeta[];
+      ts.forEach((t) => used.add(t.code));
+      if (ts.length) out.push({ name: g.name, tables: ts });
+    }
+    const rest = tables.filter((t) => !used.has(t.code));
+    if (rest.length) out.push({ name: defs.length ? 'Other Spreadsheets' : 'Spreadsheets', tables: rest });
+    return out;
+  }, [manifest, tables]);
+
+  const activeTable = useMemo(
+    () => tables.find((t) => t.code === activeTableCode) ?? null,
+    [tables, activeTableCode],
+  );
 
   const datasets = useMemo(
     () => [...new Set(series.map((s) => s.dataset).filter(Boolean))] as string[],
@@ -358,8 +381,7 @@ const UtilDetailInner = ({ id }: { id: string }) => {
       setManifest(m);
       setSeries(s);
       setTables(t);
-      // If a util has no series but has wide tables, land on the Tables tab.
-      if (s.length === 0 && t.length > 0) setActiveTab('tables');
+      setActiveTableCode((prev) => prev ?? t[0]?.code ?? null);
       const ds = [...new Set(s.map((x) => x.dataset).filter(Boolean))] as string[];
       const initial = ds[0] ?? null;
       setActiveDataset((prev) => prev ?? initial);
@@ -452,17 +474,12 @@ const UtilDetailInner = ({ id }: { id: string }) => {
             )}
             {manifest?.description && <p className="text-sm text-gray-400 mt-0.5 max-w-2xl">{manifest.description}</p>}
           </div>
-          {activeTab === 'data' && (
+          {activeTab === 'tables' && (
             <div className="flex items-center gap-3">
               <button onClick={handleRefresh} disabled={refreshing}
                 className="inline-flex items-center space-x-2 rounded-md bg-[#243975] px-4 py-2 text-sm font-medium text-white hover:bg-[#1c2e5e] disabled:opacity-60">
                 <RefreshCwIcon size={16} className={refreshing ? 'animate-spin' : ''} />
                 <span>{refreshing ? 'Refreshing…' : 'Refresh data'}</span>
-              </button>
-              <button onClick={handleExport} disabled={exporting || !activeSeries}
-                className="inline-flex items-center space-x-2 rounded-md border border-[#008080] px-4 py-2 text-sm font-medium text-[#008080] hover:bg-[#008080]/10 disabled:opacity-50 disabled:cursor-not-allowed">
-                <DownloadIcon size={16} />
-                <span>{exporting ? 'Exporting…' : 'Export to Excel'}</span>
               </button>
             </div>
           )}
@@ -470,27 +487,53 @@ const UtilDetailInner = ({ id }: { id: string }) => {
 
         {/* Top-level tabs */}
         <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
-          {(series.length > 0 || tables.length === 0) && (
-            <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<TableIcon size={16} />} label="Data" />
-          )}
-          {tables.length > 0 && (
-            <TabButton active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} icon={<TableIcon size={16} />} label="Tables" />
-          )}
+          <TabButton active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} icon={<TableIcon size={16} />} label="Data" />
           {views.map((v) => (
             <TabButton key={v.id} active={activeTab === v.id} onClick={() => setActiveTab(v.id)} icon={<BarChart3Icon size={16} />} label={v.name} />
           ))}
         </div>
 
         {error && <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
-        {notice && activeTab === 'data' && <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{notice}</div>}
+        {notice && activeTab === 'tables' && <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{notice}</div>}
 
-        {/* Tables tab (wide/multi-column) */}
+        {/* Data tab: grouped, navigable spreadsheets */}
         {activeTab === 'tables' && (
-          <div>
-            {tables.map((t) => (
-              <DataTableView key={t.code} token={token ?? ''} utilId={id} meta={t} />
-            ))}
-          </div>
+          tables.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center">
+              <DatabaseIcon size={40} className="text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-600 mb-1">No data stored yet.</p>
+              <p className="text-sm text-gray-400">Click <span className="font-medium">Refresh data</span> to pull the latest.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col md:flex-row gap-4">
+              <aside className="md:w-72 shrink-0">
+                <div className="border border-gray-200 rounded-lg bg-white overflow-hidden max-h-[75vh] overflow-y-auto">
+                  {tableGroups.map((g) => (
+                    <div key={g.name}>
+                      <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-y border-gray-100">{g.name}</div>
+                      {g.tables.map((t) => {
+                        const active = activeTableCode === t.code;
+                        return (
+                          <button key={t.code} onClick={() => setActiveTableCode(t.code)}
+                            className={`w-full text-left px-3 py-2.5 border-l-[3px] transition-colors ${active ? 'border-l-[#008080] bg-[#008080]/8' : 'border-l-transparent hover:bg-gray-50'}`}>
+                            <div className={`text-sm leading-snug ${active ? 'text-[#008080] font-medium' : 'text-gray-700'}`}>{t.title ?? t.code}</div>
+                            <div className="text-[11px] text-gray-400 mt-0.5">{t.n_rows} rows · {t.n_columns} cols</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </aside>
+              <div className="flex-1 min-w-0">
+                {activeTable ? (
+                  <DataTableView key={activeTable.code} token={token ?? ''} utilId={id} meta={activeTable} />
+                ) : (
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center text-gray-400 text-sm">Select a spreadsheet to view.</div>
+                )}
+              </div>
+            </div>
+          )
         )}
 
         {/* View tab */}
@@ -498,115 +541,6 @@ const UtilDetailInner = ({ id }: { id: string }) => {
           <ViewHost token={token ?? ''} utilId={id} viewId={activeTab} reports={manifest?.reports ?? []} />
         )}
 
-        {/* Data tab */}
-        {activeTab === 'data' && (
-          series.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center">
-              <DatabaseIcon size={40} className="text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 mb-1">No data stored yet.</p>
-              <p className="text-sm text-gray-400">
-                Click <span className="font-medium">Refresh data</span> to pull the latest from {manifest?.source ?? 'the source'}.
-              </p>
-            </div>
-          ) : (
-            <div>
-              {/* Dataset picker */}
-              {datasets.length > 1 && (
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {datasets.map((d) => (
-                    <button key={d} onClick={() => selectDataset(d)}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
-                        activeDataset === d
-                          ? 'bg-[#243975] text-white border-[#243975]'
-                          : 'text-gray-600 border-gray-300 hover:bg-gray-50'
-                      }`}>
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Table browser: searchable sidebar + table */}
-              <div className="flex flex-col md:flex-row gap-4">
-                {/* Sidebar: list of tables in this dataset */}
-                <aside className="md:w-72 shrink-0">
-                  {visibleSeries.length > 6 && (
-                    <div className="relative mb-2">
-                      <SearchIcon size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder={`Search ${visibleSeries.length} tables…`}
-                        className="w-full rounded-md border border-gray-300 pl-8 pr-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none"
-                      />
-                    </div>
-                  )}
-                  <div className="border border-gray-200 rounded-lg bg-white overflow-hidden max-h-[70vh] overflow-y-auto divide-y divide-gray-100">
-                    {filteredSeries.length === 0 ? (
-                      <div className="px-3 py-6 text-center text-xs text-gray-400">No tables match “{search}”.</div>
-                    ) : filteredSeries.map((s) => {
-                      const active = activeSeries === s.id;
-                      return (
-                        <button key={s.id} onClick={() => setActiveSeries(s.id)}
-                          className={`w-full text-left px-3 py-2.5 border-l-[3px] transition-colors ${
-                            active
-                              ? 'border-l-[#008080] bg-[#008080]/8'
-                              : 'border-l-transparent hover:bg-gray-50'
-                          }`}>
-                          <div className={`text-sm leading-snug ${active ? 'text-[#008080] font-medium' : 'text-gray-700'}`}>
-                            {s.title ?? s.code}
-                          </div>
-                          {(s.frequency || s.unit) && (
-                            <div className="text-[11px] text-gray-400 mt-0.5">
-                              {[s.frequency, s.unit].filter(Boolean).join(' · ')}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </aside>
-
-                {/* Right column: filters + table */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500 whitespace-nowrap">From</label>
-                      <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                        className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500 whitespace-nowrap">To</label>
-                      <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                        className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#243975] focus:outline-none" />
-                    </div>
-                    {(dateFrom || dateTo) && (
-                      <button onClick={() => { setDateFrom(''); setDateTo(''); }}
-                        className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
-                    )}
-                  </div>
-
-                  {currentSeries ? (
-                    <>
-                      <h3 className="text-base font-semibold text-[#243975] mb-2">{currentSeries.title ?? currentSeries.code}</h3>
-                      <SeriesTable
-                        key={currentSeries.id}
-                        token={token ?? ''}
-                        series={currentSeries}
-                        dateFrom={dateFrom}
-                        dateTo={dateTo}
-                      />
-                    </>
-                  ) : (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-10 text-center text-gray-400 text-sm">
-                      Select a table to view data.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        )}
       </div>
     </div>
   );

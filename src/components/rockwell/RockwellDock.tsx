@@ -151,6 +151,7 @@ export default function RockwellDock() {
   const [board, setBoard] = useState<Board | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskBucketId, setNewTaskBucketId] = useState('');
+  const [showAddTask, setShowAddTask] = useState(false);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [taskByChat, setTaskByChat] = useState<Record<string, ActiveTaskRef | null>>(() => {
     try { return JSON.parse(localStorage.getItem('rw_task_by_chat') || '{}'); } catch { return {}; }
@@ -386,6 +387,12 @@ export default function RockwellDock() {
     setBoard(updated);
     setNewTaskTitle('');
     try { await saveBoard(updated, token); } catch { /* keep local; retry later */ }
+  }
+
+  function submitNewTask() {
+    const had = !!newTaskTitle.trim();
+    addTask();
+    if (had) setShowAddTask(false);
   }
 
   function taskContextFor(at: ActiveTaskRef | null): LocalMsg | null {
@@ -691,34 +698,50 @@ export default function RockwellDock() {
         </div>
       ) : (
       <>
-        {/* Quick add */}
-        <div className="mb-3">
-          <div className="flex items-center gap-1.5">
-            <input
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addTask(); }}
-              placeholder="Add a task…"
-              className="flex-1 rounded-lg px-3 py-2 text-[13px] focus:outline-none"
-              style={{ background: '#ffffff', border: `1px solid ${GOLD}40`, color: '#1f2a44' }}
-            />
-            <button onClick={addTask} disabled={!newTaskTitle.trim()} title="Add task"
-              className="shrink-0 inline-flex items-center justify-center rounded-lg disabled:opacity-40"
-              style={{ width: 34, height: 34, background: GOLD, color: '#ffffff' }}>
-              <PlusIcon size={17} />
-            </button>
+        {/* Quick add — collapsed to a button until you choose to add */}
+        {!showAddTask ? (
+          <button onClick={() => setShowAddTask(true)}
+            className="mb-3 w-full inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-medium"
+            style={{ border: `1px dashed ${GOLD}59`, color: GOLD }}>
+            <PlusIcon size={14} /> New task
+          </button>
+        ) : (
+          <div className="mb-3">
+            <div className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitNewTask();
+                  if (e.key === 'Escape') { setNewTaskTitle(''); setShowAddTask(false); }
+                }}
+                placeholder="Add a task…"
+                className="flex-1 rounded-lg px-3 py-2 text-[13px] focus:outline-none"
+                style={{ background: '#ffffff', border: `1px solid ${GOLD}40`, color: '#1f2a44' }}
+              />
+              <button onClick={submitNewTask} disabled={!newTaskTitle.trim()} title="Add task"
+                className="shrink-0 inline-flex items-center justify-center rounded-lg disabled:opacity-40"
+                style={{ width: 34, height: 34, background: GOLD, color: '#ffffff' }}>
+                <PlusIcon size={17} />
+              </button>
+            </div>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <select
+                value={newTaskBucketId || board.buckets[0]?.id || ''}
+                onChange={(e) => setNewTaskBucketId(e.target.value)}
+                className="flex-1 rounded-md px-2 py-1 text-[11px] focus:outline-none"
+                style={{ background: '#ffffff', color: 'rgba(0,0,0,0.55)', border: `1px solid ${GOLD}26` }}
+              >
+                {board.buckets.map((b) => (
+                  <option key={b.id} value={b.id} style={{ background: '#ffffff', color: '#1f2a44' }}>{b.name}</option>
+                ))}
+              </select>
+              <button onClick={() => { setNewTaskTitle(''); setShowAddTask(false); }}
+                className="px-2 py-1 text-[11px]" style={{ color: 'rgba(0,0,0,0.45)' }}>Cancel</button>
+            </div>
           </div>
-          <select
-            value={newTaskBucketId || board.buckets[0]?.id || ''}
-            onChange={(e) => setNewTaskBucketId(e.target.value)}
-            className="mt-1.5 w-full rounded-md px-2 py-1 text-[11px] focus:outline-none"
-            style={{ background: '#ffffff', color: 'rgba(0,0,0,0.55)', border: `1px solid ${GOLD}26` }}
-          >
-            {board.buckets.map((b) => (
-              <option key={b.id} value={b.id} style={{ background: '#ffffff', color: '#1f2a44' }}>{b.name}</option>
-            ))}
-          </select>
-        </div>
+        )}
         {openTasks.length === 0 ? (
           <p className="text-[12px] text-center mt-4" style={{ color: 'rgba(0,0,0,0.45)' }}>No open tasks yet.</p>
         ) : (
