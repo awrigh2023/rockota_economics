@@ -30,28 +30,42 @@ const LibraryPage = () => {
           {entries.map((d) => {
             const isDeck = !!d.deck;
             const cardClass =
-              'text-left bg-white rounded-lg shadow-sm border border-gray-100 p-6 flex flex-col hover:shadow-md hover:border-[#008080]/40 transition';
+              'group text-left bg-white rounded-lg shadow-sm border border-gray-100 p-6 flex flex-col hover:shadow-md hover:border-[#008080]/40 transition';
             const inner = (
               <>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="p-3 rounded-lg" style={{ background: `${d.accent}1a` }}>
-                    {isDeck ? (
+                {d.youtubeId ? (
+                  <div className="relative -mx-6 -mt-6 mb-4 overflow-hidden rounded-t-lg bg-gray-100">
+                    <img
+                      src={`https://img.youtube.com/vi/${d.youtubeId}/hqdefault.jpg`}
+                      alt={d.title}
+                      loading="lazy"
+                      className="w-full aspect-video object-cover"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/25 transition group-hover:bg-black/10">
+                      <span className="rounded-full bg-white/90 p-3 shadow"><PlayIcon size={22} style={{ color: d.accent }} /></span>
+                    </div>
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                      {d.draft && (
+                        <span className="text-[10px] uppercase tracking-wide font-semibold text-amber-800 bg-amber-100/95 px-2 py-0.5 rounded-full">Draft</span>
+                      )}
+                      <span className="text-[10px] uppercase tracking-wide text-white bg-black/55 px-2 py-0.5 rounded-full">Video</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="p-3 rounded-lg" style={{ background: `${d.accent}1a` }}>
                       <PresentationIcon size={22} style={{ color: d.accent }} />
-                    ) : (
-                      <PlayIcon size={22} style={{ color: d.accent }} />
-                    )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {d.draft && (
+                        <span className="text-[10px] uppercase tracking-wide font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                          Draft
+                        </span>
+                      )}
+                      <span className="text-[11px] uppercase tracking-wide text-gray-400 mt-0.5">Slides</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {d.draft && (
-                      <span className="text-[10px] uppercase tracking-wide font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                        Draft
-                      </span>
-                    )}
-                    <span className="text-[11px] uppercase tracking-wide text-gray-400 mt-0.5">
-                      {isDeck ? 'Slides' : 'Video'}
-                    </span>
-                  </div>
-                </div>
+                )}
                 <h3 className="text-lg font-semibold text-gray-900 leading-snug">{d.title}</h3>
                 <p className="flex items-center text-sm text-gray-500 mt-1">
                   <UserIcon size={13} className="mr-1.5" /> {d.author}

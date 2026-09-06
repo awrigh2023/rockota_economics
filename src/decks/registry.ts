@@ -1,5 +1,4 @@
 import { ComponentType } from 'react';
-import TShirtDeck from './tShirtDeck';
 
 /**
  * The Library is the home for every Rockota book piece: in-platform decks you
@@ -32,13 +31,12 @@ export interface DeckEntry {
 
 export const DECKS: DeckEntry[] = [
   {
-    id: 'travels-of-a-t-shirt',
-    title: 'The Travels of a T-Shirt in the Global Economy',
-    author: 'Pietra Rivoli',
-    tagline: 'One t-shirt, traced through the politics behind global trade.',
+    id: 'good-economics-for-hard-times',
+    title: 'Good Economics for Hard Times',
+    author: 'Abhijit V. Banerjee & Esther Duflo',
+    tagline: 'Make Economics Great Again',
     accent: '#008080',
-    deck: TShirtDeck,
-    draft: true, // pilot — publish when you've recorded it
+    youtubeId: '2f2_4OHPYzw',
   },
   {
     id: 'doughnut-economics',
