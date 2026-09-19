@@ -85,9 +85,14 @@ export async function detectLocalModel(signal?: AbortSignal): Promise<ModelStatu
   }
 }
 
+export type LocalContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface LocalMsg {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  /** Plain text, or multimodal parts (text + image data URLs) for PDF/image input. */
+  content: string | LocalContentPart[];
 }
 
 /**

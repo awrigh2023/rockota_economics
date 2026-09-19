@@ -141,6 +141,50 @@ function resolveModel(s: ModelStatus | null, src: ModelSource): string | null {
   return pref && s.models.includes(pref) ? pref : (s.models[0] ?? null);
 }
 
+// pdf.js loaded on demand from CDN (no npm dep). Renders PDF pages to JPEG data
+// URLs so Rockwell (Claude bridge) can read/transcribe scanned or handwritten pages.
+let pdfjsPromise: Promise<unknown> | null = null;
+function loadPdfJs(): Promise<{ getDocument: (o: unknown) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: unknown) => { promise: Promise<void> } }> }> }; GlobalWorkerOptions: { workerSrc: string } }> {
+  const w = window as unknown as { pdfjsLib?: unknown };
+  if (w.pdfjsLib) return Promise.resolve(w.pdfjsLib as never);
+  if (!pdfjsPromise) {
+    pdfjsPromise = new Promise((resolve, reject) => {
+      const base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
+      const s = document.createElement('script');
+      s.src = `${base}/pdf.min.js`;
+      s.onload = () => {
+        const lib = (window as unknown as { pdfjsLib?: { GlobalWorkerOptions: { workerSrc: string } } }).pdfjsLib;
+        if (!lib) { reject(new Error('pdf.js failed to load')); return; }
+        lib.GlobalWorkerOptions.workerSrc = `${base}/pdf.worker.min.js`;
+        resolve(lib as never);
+      };
+      s.onerror = () => reject(new Error('pdf.js failed to load'));
+      document.head.appendChild(s);
+    });
+  }
+  return pdfjsPromise as never;
+}
+
+async function pdfToImages(file: File, maxPages = 15): Promise<string[]> {
+  const pdfjs = await loadPdfJs();
+  const data = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data }).promise;
+  const n = Math.min(pdf.numPages, maxPages);
+  const out: string[] = [];
+  for (let i = 1; i <= n; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.6 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    out.push(canvas.toDataURL('image/jpeg', 0.8));
+  }
+  return out;
+}
+
 export default function RockwellDock() {
   const { user, token } = useAuth();
   const location = useLocation();
@@ -172,6 +216,10 @@ export default function RockwellDock() {
   const [newSchedTime, setNewSchedTime] = useState('');
   const [newSchedText, setNewSchedText] = useState('');
   const [showAddSched, setShowAddSched] = useState(false);
+  // PDF attachments for the current compose (rendered to page images, Claude-only).
+  const [attachments, setAttachments] = useState<{ name: string; images: string[] }[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const [attachErr, setAttachErr] = useState<string | null>(null);
   const [taskBoardOpen, setTaskBoardOpen] = useState(false);
   const [expandTask, setExpandTask] = useState<Task | null>(null);
   const [retryText, setRetryText] = useState<Record<string, string>>({});
@@ -561,16 +609,49 @@ export default function RockwellDock() {
     patchSession(activeId, (s) => ({ ...s, messages: [...s.messages, { role: 'assistant', content: `✓ Marked **${at.title}** complete on your console.` }] }));
   }
 
+  // PDF reading uses Claude's vision via the bridge; local models can't do it.
+  const canAttach = source === 'claude';
+
+  async function ingestFiles(files: FileList | File[]) {
+    const pdfs = Array.from(files).filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (!pdfs.length) return;
+    if (!canAttach) { setAttachErr('PDF reading needs the Claude model — switch the source to Claude.'); return; }
+    setAttachErr(null);
+    setAttaching(true);
+    try {
+      for (const f of pdfs) {
+        const images = await pdfToImages(f);
+        if (images.length) setAttachments((a) => [...a, { name: f.name, images }]);
+        else setAttachErr(`Couldn't render any pages from ${f.name}.`);
+      }
+    } catch (e) {
+      setAttachErr(e instanceof Error ? e.message : 'Could not read that PDF.');
+    } finally {
+      setAttaching(false);
+    }
+  }
+
   async function send(overrideText?: string, targetId?: string, taskOverride?: ActiveTaskRef, goalOverride?: GoalRef) {
     const chatId = targetId ?? activeId;
     const text = (overrideText ?? input).trim();
-    if (!text || !chatId || !status?.connected || !model) return;
+    // Attachments (PDF page images) apply only to a real user send, on the Claude source.
+    const atts = overrideText === undefined && canAttach ? attachments : [];
+    const imgs = atts.flatMap((a) => a.images);
+    if ((!text && imgs.length === 0) || !chatId || !status?.connected || !model) return;
     if (sessions[chatId]?.streaming) return; // this chat is already generating
     if (runningCount >= MAX_CONCURRENT) {
       patchSession(chatId, (s) => ({ ...s, messages: [...s.messages, { role: 'assistant', content: `⚠ Too many chats are generating at once (max ${MAX_CONCURRENT}). Let one finish first.` }] }));
       return;
     }
-    if (overrideText === undefined) setInput('');
+    // What's stored/shown in the transcript (text + a note of any attachments)…
+    const attNote = imgs.length ? atts.map((a) => `📎 ${a.name} (${a.images.length} pg)`).join(', ') : '';
+    const displayText = attNote ? `${text}${text ? '\n\n' : ''}_${attNote}_` : text;
+    // …vs. what the model receives (text + image blocks on the final user turn).
+    const userContent: LocalMsg['content'] = imgs.length
+      ? [{ type: 'text' as const, text: text || 'Please read the attached page image(s) and transcribe/answer.' },
+         ...imgs.map((url) => ({ type: 'image_url' as const, image_url: { url } }))]
+      : text;
+    if (overrideText === undefined) { setInput(''); setAttachments([]); setAttachErr(null); }
     const prior = sessions[chatId]?.messages ?? [];
     let history: LocalMsg[] = prior.map((m) => ({ role: m.role, content: m.content }));
     // Small local models have tiny context windows — keep only the most recent
@@ -586,7 +667,7 @@ export default function RockwellDock() {
       }
       history = kept;
     }
-    patchSession(chatId, (s) => ({ messages: [...s.messages, { role: 'user', content: text }, { role: 'assistant', content: '' }], streaming: true }));
+    patchSession(chatId, (s) => ({ messages: [...s.messages, { role: 'user', content: displayText }, { role: 'assistant', content: '' }], streaming: true }));
     const controller = new AbortController();
     abortRefs.current[chatId] = controller;
 
@@ -627,7 +708,7 @@ export default function RockwellDock() {
       ...(goalMsg ? [goalMsg] : []),
       ...(contextMsg ? [contextMsg] : []),
       ...history,
-      { role: 'user', content: text },
+      { role: 'user', content: userContent },
     ];
     const auth = useClaudeTools && token ? { token, apiBase: API_URL, allowWrites } : undefined;
     let acc = '';
@@ -673,7 +754,7 @@ export default function RockwellDock() {
       setGrounding(null);
       if (acc.trim()) {
         setRetryText((r) => { const n = { ...r }; delete n[chatId]; return n; });
-        const finalMsgs: ChatMsg[] = [...prior, { role: 'user', content: text }, { role: 'assistant', content: acc, sources }];
+        const finalMsgs: ChatMsg[] = [...prior, { role: 'user', content: displayText }, { role: 'assistant', content: acc, sources }];
         persistTurn(chatId, finalMsgs);
         // Notify if the user isn't currently looking at this chat.
         const notViewing = !openRef.current || activeIdRef.current !== chatId;
@@ -1475,22 +1556,49 @@ export default function RockwellDock() {
 
           {/* Input */}
           <div className="px-3 py-3" style={{ background: PANEL, borderTop: `1px solid ${GOLD}22` }}>
-            <div className="flex items-end gap-2 rounded-xl px-3 py-2" style={{ background: NAVY, border: `1px solid ${GOLD}33`, opacity: status?.connected ? 1 : 0.5 }}>
+            {/* PDF attachments (rendered page images, sent to Claude to read) */}
+            {(attachments.length > 0 || attaching || attachErr) && (
+              <div className="mb-2 space-y-1">
+                {attachments.map((a, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1 text-[11px]"
+                    style={{ background: `${GOLD}12`, color: '#0f2e2e', border: `1px solid ${GOLD}2e` }}>
+                    <span className="truncate flex-1">📎 {a.name} · {a.images.length} page{a.images.length === 1 ? '' : 's'}</span>
+                    <button onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))} title="Remove"
+                      style={{ color: 'rgba(0,0,0,0.4)' }}><XIcon size={12} /></button>
+                  </div>
+                ))}
+                {attaching && <div className="text-[11px]" style={{ color: GOLD }}>Rendering PDF…</div>}
+                {attachErr && <div className="text-[11px]" style={{ color: '#b91c1c' }}>{attachErr}</div>}
+              </div>
+            )}
+            <div
+              className="flex items-end gap-2 rounded-xl px-3 py-2"
+              style={{ background: NAVY, border: `1px solid ${GOLD}33`, opacity: status?.connected ? 1 : 0.5 }}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) ingestFiles(e.dataTransfer.files); }}
+            >
               <textarea
                 ref={taRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                onPaste={(e) => {
+                  const fs = e.clipboardData?.files;
+                  if (fs && fs.length && Array.from(fs).some((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name))) {
+                    e.preventDefault();
+                    ingestFiles(fs);
+                  }
+                }}
                 rows={1}
                 disabled={!status?.connected}
-                placeholder={status?.connected ? 'Ask Rockwell…' : 'Connect a model to chat'}
+                placeholder={status?.connected ? (canAttach ? 'Ask Rockwell… (drop a PDF to read)' : 'Ask Rockwell…') : 'Connect a model to chat'}
                 className="flex-1 resize-none bg-transparent text-sm focus:outline-none"
                 style={{ color: '#1f2a44', maxHeight: 200, overflowY: 'auto' }}
               />
               {streaming ? (
                 <button onClick={stop} title="Stop" className="p-1.5 rounded-lg" style={{ color: GOLD }}><StopCircleIcon size={20} /></button>
               ) : (
-                <button onClick={() => send()} disabled={!input.trim() || !status?.connected} title="Send" className="p-1.5 rounded-lg disabled:opacity-40" style={{ color: GOLD }}><SendIcon size={18} /></button>
+                <button onClick={() => send()} disabled={(!input.trim() && attachments.length === 0) || !status?.connected} title="Send" className="p-1.5 rounded-lg disabled:opacity-40" style={{ color: GOLD }}><SendIcon size={18} /></button>
               )}
             </div>
             <div className="text-[10px] text-center mt-1.5" style={{ color: 'rgba(0,0,0,0.35)' }}>
