@@ -43,7 +43,7 @@ export default function InputControls({ onSend, streaming, disabled }: InputCont
         <button
           type="submit"
           disabled={streaming || !input.trim() || disabled}
-          className="px-3 py-2 mr-1 rounded-full bg-rw-gold text-rw-navy font-medium text-sm hover:bg-rw-gold-dark disabled:opacity-30 transition-colors flex items-center gap-1"
+          className="px-3 py-2 mr-1 rounded-full bg-rw-gold text-white font-medium text-sm hover:bg-rw-gold-dark disabled:opacity-30 transition-colors flex items-center gap-1"
         >
           <Send size={14} />
         </button>

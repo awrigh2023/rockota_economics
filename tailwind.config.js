@@ -7,14 +7,14 @@ export default {
     extend: {
       colors: {
         // Rockwell workspace theme — used in src/components/rockwell/**
-        // Dark panels (vault, notes, graph) use rw-surface/background/foreground.
-        // Chat components use explicit white/gray values so they stay light.
-        'rw-gold':       { DEFAULT: '#d7c770', dark: '#b8a850' },
-        'rw-surface':    { DEFAULT: '#1a2744', light: '#223050' },
+        // Light theme matching the Rockwell chat dock (white + Rockota teal).
+        // A dark variant can be layered on later.
+        'rw-gold':       { DEFAULT: '#008080', dark: '#006666' }, // accent → teal (matches dock)
+        'rw-surface':    { DEFAULT: '#eef5f3', light: '#f7faf9' }, // soft panel / hover
         'rw-navy':       { DEFAULT: '#243975', dark: '#1a2a54' },
-        'rw-gray':       { DEFAULT: '#808080', dark: '#5a5a5a' },
-        'rw-foreground': '#e2e8f0',
-        'rw-background': '#0f1729',
+        'rw-gray':       { DEFAULT: '#64748b', dark: '#475569' },  // muted text (readable on white)
+        'rw-foreground': '#1f2a44',                                // ink text
+        'rw-background': '#ffffff',                                // main surface (white)
         'rw-teal':       { DEFAULT: '#008080', dark: '#006666' },
       },
     },

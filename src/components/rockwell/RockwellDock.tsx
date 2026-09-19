@@ -19,7 +19,7 @@ import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   SendIcon, XIcon, Maximize2Icon, Minimize2Icon, MaximizeIcon, MinimizeIcon, SquarePenIcon, StopCircleIcon,
-  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, ArchiveIcon, PencilIcon, CheckIcon, PlusIcon, SparklesIcon,
+  RefreshCwIcon, DownloadIcon, MessagesSquareIcon, ArchiveIcon, PencilIcon, CheckIcon, PlusIcon, SparklesIcon, PaperclipIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -239,6 +239,7 @@ export default function RockwellDock() {
   const abortRefs = useRef<Record<string, AbortController>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Live mirrors so the async send() can tell, at completion, whether the user
   // is actually looking at that chat (to decide if a reply is "unread").
   const activeIdRef = useRef<string | null>(activeId);
@@ -1577,6 +1578,27 @@ export default function RockwellDock() {
               onDragOver={(e) => { e.preventDefault(); }}
               onDrop={(e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) ingestFiles(e.dataTransfer.files); }}
             >
+              {canAttach && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => { if (e.target.files?.length) ingestFiles(e.target.files); e.target.value = ''; }}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!status?.connected}
+                    title="Attach a PDF"
+                    className="p-1.5 rounded-lg disabled:opacity-40"
+                    style={{ color: GOLD }}
+                  >
+                    <PaperclipIcon size={18} />
+                  </button>
+                </>
+              )}
               <textarea
                 ref={taRef}
                 value={input}
@@ -1591,7 +1613,7 @@ export default function RockwellDock() {
                 }}
                 rows={1}
                 disabled={!status?.connected}
-                placeholder={status?.connected ? (canAttach ? 'Ask Rockwell… (drop a PDF to read)' : 'Ask Rockwell…') : 'Connect a model to chat'}
+                placeholder={status?.connected ? 'Ask Rockwell…' : 'Connect a model to chat'}
                 className="flex-1 resize-none bg-transparent text-sm focus:outline-none"
                 style={{ color: '#1f2a44', maxHeight: 200, overflowY: 'auto' }}
               />
