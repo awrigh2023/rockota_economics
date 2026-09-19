@@ -82,7 +82,7 @@ function nodeInFocus(node: GraphNode, focusedPath: string): boolean {
   return path === focusedPath || path.startsWith(focusedPath + '/');
 }
 
-const SELECTED_COLOR = new THREE.Color('#f59e0b');
+const SELECTED_COLOR = new THREE.Color('#d7c770'); // Rockota gold
 const SPHERE_GEOMETRY = new THREE.SphereGeometry(1, 32, 32);
 const HALO_GEOMETRY = new THREE.SphereGeometry(1, 16, 16);
 
@@ -381,13 +381,13 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
   }, [hover, focusedFolderPath, linkTouchesFocus]);
 
   const linkColor = useCallback((link: SimLink) => {
-    if (linkIsDim(link)) return 'rgba(186,200,220,0.06)';
+    if (linkIsDim(link)) return 'rgba(36,57,117,0.05)';
     const src = typeof link.source === 'string' ? link.source : link.source.id;
     const tgt = typeof link.target === 'string' ? link.target : link.target.id;
     const hoveredId = hover?.node.id ?? null;
-    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(215,199,112,0.95)';
-    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(215,199,112,0.9)';
-    return 'rgba(186,200,220,0.55)';
+    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(0,128,128,0.95)';
+    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(0,128,128,0.85)';
+    return 'rgba(36,57,117,0.24)';
   }, [linkIsDim, hover, selectedPath]);
 
   const linkWidth = useCallback((link: SimLink) => {
@@ -401,13 +401,13 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
   }, [linkIsDim, hover, selectedPath]);
 
   const linkArrowColor = useCallback((link: SimLink) => {
-    if (linkIsDim(link)) return 'rgba(186,200,220,0.06)';
+    if (linkIsDim(link)) return 'rgba(36,57,117,0.05)';
     const src = typeof link.source === 'string' ? link.source : link.source.id;
     const tgt = typeof link.target === 'string' ? link.target : link.target.id;
     const hoveredId = hover?.node.id ?? null;
-    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(215,199,112,0.95)';
-    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(215,199,112,0.9)';
-    return 'rgba(186,200,220,0.65)';
+    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(0,128,128,0.95)';
+    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(0,128,128,0.85)';
+    return 'rgba(36,57,117,0.34)';
   }, [linkIsDim, hover, selectedPath]);
 
   // TEMP (testing): "neurons firing" — periodically emit a particle along a
@@ -444,24 +444,25 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     const selected = id === selectedPath || id === hoveredId;
 
     const hue = hashHue(node.topFolder || node.scope);
-    const sat = node.topFolder ? 78 : 28;
-    const baseL = node.scope === 'user' ? 68 : 56;
+    const sat = node.topFolder ? 70 : 24;
+    // Darker base lightness so nodes read on the light canvas.
+    const baseL = node.scope === 'user' ? 50 : 42;
     // Per-node lightness jitter (deterministic) so siblings differ slightly.
     const jitter = (hashHue(node.id) % 26) - 13;
-    const L = Math.max(24, Math.min(84, baseL + jitter));
+    const L = Math.max(30, Math.min(64, baseL + jitter));
     const r = radiusFor(node);
 
     let fill: string;
     let stroke: string;
     if (dim) {
-      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.07)`;
-      stroke = 'rgba(186,200,220,0.06)';
+      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.10)`;
+      stroke = 'rgba(36,57,117,0.05)';
     } else if (selected) {
-      fill = 'rgba(245,158,11,0.92)';
-      stroke = 'rgba(255,255,255,0.9)';
+      fill = 'rgba(215,199,112,0.95)'; // Rockota gold
+      stroke = 'rgba(36,57,117,0.85)'; // navy ring
     } else {
-      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.78)`;
-      stroke = 'rgba(255,255,255,0.4)';
+      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.88)`;
+      stroke = 'rgba(36,57,117,0.35)';
     }
 
     ctx.beginPath();
@@ -505,11 +506,11 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
         className="flex-1 relative min-h-0 overflow-hidden flex"
         style={{
           background: [
-            'radial-gradient(circle at 1px 1px, rgba(215,199,112,0.06) 1px, transparent 0) 0 0 / 28px 28px',
-            'radial-gradient(ellipse 60% 45% at 18% 22%, rgba(0,128,128,0.18), transparent 65%)',
-            'radial-gradient(ellipse 55% 45% at 82% 78%, rgba(36,57,117,0.22), transparent 65%)',
-            'radial-gradient(ellipse 40% 35% at 72% 20%, rgba(0,80,100,0.14), transparent 70%)',
-            'linear-gradient(150deg, #0f1e3d 0%, #0d2233 50%, #0a1a1a 100%)',
+            'radial-gradient(circle at 1px 1px, rgba(0,128,128,0.10) 1px, transparent 0) 0 0 / 26px 26px',
+            'radial-gradient(ellipse 60% 45% at 18% 22%, rgba(0,128,128,0.12), transparent 65%)',
+            'radial-gradient(ellipse 55% 45% at 82% 78%, rgba(36,57,117,0.10), transparent 65%)',
+            'radial-gradient(ellipse 40% 35% at 72% 20%, rgba(215,199,112,0.12), transparent 70%)',
+            'linear-gradient(150deg, #ffffff 0%, #f3f9f8 55%, #eef5f3 100%)',
           ].join(','),
         }}
       >
