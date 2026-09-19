@@ -61,11 +61,12 @@ function hashHue(key: string): number {
 
 function paletteFor(node: GraphNode) {
   const hue = hashHue(node.topFolder || node.scope);
-  const baseL = node.scope === 'user' ? 70 : 58;
-  const sat = node.topFolder ? 78 : 28;
+  // Darker/richer than before so nodes read against the light canvas.
+  const baseL = node.scope === 'user' ? 46 : 38;
+  const sat = node.topFolder ? 72 : 32;
   return {
     base: `hsl(${hue}, ${sat}%, ${baseL}%)`,
-    dark: `hsl(${hue}, ${sat}%, ${Math.max(baseL - 36, 6)}%)`,
+    dark: `hsl(${hue}, ${sat}%, ${Math.max(baseL - 22, 12)}%)`,
   };
 }
 
@@ -350,7 +351,7 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
 
     let ringMat: THREE.MeshBasicMaterial | null = null;
     if (node.scope === 'user') {
-      ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: dimByFocus ? 0.02 : 0.28, wireframe: true });
+      ringMat = new THREE.MeshBasicMaterial({ color: 0x243975, transparent: true, opacity: dimByFocus ? 0.03 : 0.32, wireframe: true });
       const ring = new THREE.Mesh(SPHERE_GEOMETRY, ringMat);
       ring.scale.setScalar(r * 1.04);
       group.add(ring);
@@ -444,12 +445,12 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     const selected = id === selectedPath || id === hoveredId;
 
     const hue = hashHue(node.topFolder || node.scope);
-    const sat = node.topFolder ? 70 : 24;
-    // Darker base lightness so nodes read on the light canvas.
-    const baseL = node.scope === 'user' ? 50 : 42;
+    const sat = node.topFolder ? 72 : 28;
+    // Darker base lightness so nodes read strongly on the light canvas.
+    const baseL = node.scope === 'user' ? 44 : 36;
     // Per-node lightness jitter (deterministic) so siblings differ slightly.
-    const jitter = (hashHue(node.id) % 26) - 13;
-    const L = Math.max(30, Math.min(64, baseL + jitter));
+    const jitter = (hashHue(node.id) % 22) - 11;
+    const L = Math.max(28, Math.min(56, baseL + jitter));
     const r = radiusFor(node);
 
     let fill: string;
