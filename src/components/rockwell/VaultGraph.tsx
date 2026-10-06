@@ -507,11 +507,16 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
         className="flex-1 relative min-h-0 overflow-hidden flex"
         style={{
           background: [
-            'radial-gradient(circle at 1px 1px, rgba(0,128,128,0.10) 1px, transparent 0) 0 0 / 26px 26px',
-            'radial-gradient(ellipse 60% 45% at 18% 22%, rgba(0,128,128,0.12), transparent 65%)',
-            'radial-gradient(ellipse 55% 45% at 82% 78%, rgba(36,57,117,0.10), transparent 65%)',
-            'radial-gradient(ellipse 40% 35% at 72% 20%, rgba(215,199,112,0.12), transparent 70%)',
-            'linear-gradient(150deg, #ffffff 0%, #f3f9f8 55%, #eef5f3 100%)',
+            // faint dot grid
+            'radial-gradient(circle at 1px 1px, rgba(36,57,117,0.07) 1px, transparent 0) 0 0 / 26px 26px',
+            // brand glow pools for depth (teal / navy / gold)
+            'radial-gradient(ellipse 55% 45% at 20% 18%, rgba(0,128,128,0.16), transparent 60%)',
+            'radial-gradient(ellipse 50% 45% at 82% 82%, rgba(36,57,117,0.15), transparent 62%)',
+            'radial-gradient(ellipse 45% 40% at 74% 22%, rgba(215,199,112,0.12), transparent 65%)',
+            // center vignette — lifts the middle so orbs pop, edges sit darker
+            'radial-gradient(ellipse at 50% 42%, rgba(255,255,255,0.40), rgba(255,255,255,0) 62%)',
+            // base: a slightly deeper muted teal-gray (darker than before, still light)
+            'linear-gradient(160deg, #e9eff0 0%, #d9e4e6 55%, #ccd9db 100%)',
           ].join(','),
         }}
       >
