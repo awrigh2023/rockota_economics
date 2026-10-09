@@ -60,13 +60,12 @@ function hashHue(key: string): number {
 }
 
 function paletteFor(node: GraphNode) {
-  const hue = hashHue(node.topFolder || node.scope);
-  // Darker/richer than before so nodes read against the light canvas.
-  const baseL = node.scope === 'user' ? 46 : 38;
-  const sat = node.topFolder ? 72 : 32;
+  const hue = 84;   // lime green for all nodes
+  const baseL = node.scope === 'user' ? 54 : 48;
+  const sat = 70;
   return {
     base: `hsl(${hue}, ${sat}%, ${baseL}%)`,
-    dark: `hsl(${hue}, ${sat}%, ${Math.max(baseL - 22, 12)}%)`,
+    dark: `hsl(${hue}, ${sat}%, ${Math.max(baseL - 20, 14)}%)`,
   };
 }
 
@@ -444,13 +443,12 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     const dim = !passesFocus || !passesHover;
     const selected = id === selectedPath || id === hoveredId;
 
-    const hue = hashHue(node.topFolder || node.scope);
-    const sat = node.topFolder ? 72 : 28;
-    // Darker base lightness so nodes read strongly on the light canvas.
-    const baseL = node.scope === 'user' ? 44 : 36;
+    const hue = 84;   // lime green for all nodes
+    const sat = 72;
+    const baseL = node.scope === 'user' ? 56 : 50;
     // Per-node lightness jitter (deterministic) so siblings differ slightly.
-    const jitter = (hashHue(node.id) % 22) - 11;
-    const L = Math.max(28, Math.min(56, baseL + jitter));
+    const jitter = (hashHue(node.id) % 16) - 8;
+    const L = Math.max(44, Math.min(66, baseL + jitter));
     const r = radiusFor(node);
 
     let fill: string;
