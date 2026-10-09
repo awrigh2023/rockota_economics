@@ -60,12 +60,13 @@ function hashHue(key: string): number {
 }
 
 function paletteFor(node: GraphNode) {
-  const hue = 84;   // lime green for all nodes
-  const baseL = node.scope === 'user' ? 54 : 48;
-  const sat = 70;
+  const hue = 180;  // Rockota green (teal) for all nodes
+  const baseL = node.scope === 'user' ? 44 : 38;
+  const sat = 60;
   return {
     base: `hsl(${hue}, ${sat}%, ${baseL}%)`,
-    dark: `hsl(${hue}, ${sat}%, ${Math.max(baseL - 20, 14)}%)`,
+    // Only a modest drop so the emissive stays teal, not a dark shell.
+    dark: `hsl(${hue}, ${sat - 5}%, ${Math.max(baseL - 12, 24)}%)`,
   };
 }
 
@@ -350,7 +351,7 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
 
     let ringMat: THREE.MeshBasicMaterial | null = null;
     if (node.scope === 'user') {
-      ringMat = new THREE.MeshBasicMaterial({ color: 0x243975, transparent: true, opacity: dimByFocus ? 0.03 : 0.32, wireframe: true });
+      ringMat = new THREE.MeshBasicMaterial({ color: 0xd7c770, transparent: true, opacity: dimByFocus ? 0.03 : 0.3, wireframe: true });
       const ring = new THREE.Mesh(SPHERE_GEOMETRY, ringMat);
       ring.scale.setScalar(r * 1.04);
       group.add(ring);
@@ -385,8 +386,8 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     const src = typeof link.source === 'string' ? link.source : link.source.id;
     const tgt = typeof link.target === 'string' ? link.target : link.target.id;
     const hoveredId = hover?.node.id ?? null;
-    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(0,128,128,0.95)';
-    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(0,128,128,0.85)';
+    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(215,199,112,0.95)';
+    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(215,199,112,0.9)';
     return 'rgba(36,57,117,0.24)';
   }, [linkIsDim, hover, selectedPath]);
 
@@ -405,8 +406,8 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     const src = typeof link.source === 'string' ? link.source : link.source.id;
     const tgt = typeof link.target === 'string' ? link.target : link.target.id;
     const hoveredId = hover?.node.id ?? null;
-    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(0,128,128,0.95)';
-    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(0,128,128,0.85)';
+    if (hoveredId && (src === hoveredId || tgt === hoveredId)) return 'rgba(215,199,112,0.95)';
+    if (selectedPath && (src === selectedPath || tgt === selectedPath)) return 'rgba(215,199,112,0.9)';
     return 'rgba(36,57,117,0.34)';
   }, [linkIsDim, hover, selectedPath]);
 
@@ -443,25 +444,25 @@ export default function VaultGraph({ selectedPath, onSelect, refreshKey, token }
     const dim = !passesFocus || !passesHover;
     const selected = id === selectedPath || id === hoveredId;
 
-    const hue = 84;   // lime green for all nodes
-    const sat = 72;
-    const baseL = node.scope === 'user' ? 56 : 50;
+    const hue = 180;  // Rockota green (teal) for all nodes
+    const sat = 58;
+    const baseL = node.scope === 'user' ? 46 : 40;
     // Per-node lightness jitter (deterministic) so siblings differ slightly.
     const jitter = (hashHue(node.id) % 16) - 8;
-    const L = Math.max(44, Math.min(66, baseL + jitter));
+    const L = Math.max(34, Math.min(56, baseL + jitter));
     const r = radiusFor(node);
 
     let fill: string;
     let stroke: string;
     if (dim) {
-      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.10)`;
-      stroke = 'rgba(36,57,117,0.05)';
+      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.12)`;
+      stroke = 'rgba(215,199,112,0.12)';
     } else if (selected) {
-      fill = 'rgba(215,199,112,0.95)'; // Rockota gold
-      stroke = 'rgba(36,57,117,0.85)'; // navy ring
+      fill = 'rgba(215,199,112,0.95)'; // Rockota gold (secondary) for the selected node
+      stroke = 'rgba(0,128,128,0.9)';  // teal ring
     } else {
-      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.88)`;
-      stroke = 'rgba(36,57,117,0.35)';
+      fill = `hsla(${hue}, ${sat}%, ${L}%, 0.92)`;
+      stroke = 'rgba(215,199,112,0.55)'; // soft gold hairline (secondary)
     }
 
     ctx.beginPath();
