@@ -722,7 +722,10 @@ export default function RockwellDock() {
     };
     try {
       armStall();
-      for await (const tok of streamLocalChat(model, req, controller.signal, auth)) {
+      // Reset the stall timer on ANY transport activity (incl. bridge keep-alive
+      // pings during long tool/subagent phases), not just on text tokens — so a
+      // busy-but-silent model is no longer mistaken for a dead one.
+      for await (const tok of streamLocalChat(model, req, controller.signal, auth, armStall)) {
         armStall();
         acc += tok;
         patchSession(chatId, (s) => {

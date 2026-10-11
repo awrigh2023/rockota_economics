@@ -107,6 +107,10 @@ export async function* streamLocalChat(
   messages: LocalMsg[],
   signal?: AbortSignal,
   auth?: { token: string; apiBase: string; allowWrites?: boolean },
+  // Called on every byte received from the server — including keep-alive pings
+  // sent while the model is busy with tools but emitting no text. Lets the caller
+  // reset a stall watchdog on real transport activity, not just on text tokens.
+  onActivity?: () => void,
 ): AsyncGenerator<string> {
   const url = getModelUrl();
   const res = await fetch(`${url}/v1/chat/completions`, {
@@ -127,6 +131,7 @@ export async function* streamLocalChat(
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
+    if (value && value.length) onActivity?.();
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() ?? '';
